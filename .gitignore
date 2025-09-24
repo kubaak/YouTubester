@@ -48,6 +48,11 @@ CodeCoverage/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# local databases
+*.db
+*.db-shm
+*.db-wal
+
 # NUnit
 *.VisualState.xml
 TestResult.xml
