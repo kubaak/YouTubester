@@ -1,4 +1,5 @@
 ﻿using YouTubester.Application;
+using YouTubester.Application.Contracts;
 
 namespace YouTubester.Api;
 
@@ -8,21 +9,16 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]")]
 public class CommentsController(ICommentService service) : ControllerBase
 {
-    [HttpGet("drafts")]
-    public async Task<IActionResult> GetDrafts()
-        => Ok(await service.GetDraftsAsync());
-
-    [HttpPost("{commentId}/approve")]
-    public async Task<IActionResult> Approve(string commentId)
+    [HttpGet]
+    public async Task<IActionResult> GetDrafts() => Ok(await service.GetDraftsAsync());
+    
+    [HttpPost("approve")]
+    public async Task<ActionResult<BatchDecisionResultDto>> BatchApprove(
+        [FromBody] IEnumerable<DraftDecisionDto> decisions,
+        CancellationToken ct)
     {
-        await service.ApproveDraftAsync(commentId);
-        return Ok();
-    }
-
-    [HttpPost("{commentId}/post")]
-    public async Task<IActionResult> PostReply(string commentId)
-    {
-        await service.PostReplyAsync(commentId);
-        return Ok();
+        if (decisions is null) return BadRequest("Missing decisions.");
+        var result = await service.ApplyBatchAsync(decisions, ct);
+        return Ok(result);
     }
 }

@@ -1,4 +1,3 @@
-using Google.Apis.YouTube.v3;
 using Microsoft.EntityFrameworkCore;
 using YouTubester.Application;
 using YouTubester.Integration;
@@ -11,15 +10,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Add your DI here
-builder.Services.AddAiClient();
-builder.Services.AddYoutubeServices();
+builder.Services.AddAiClient(builder.Configuration);
+builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
 
-var contentRoot = builder.Environment.ContentRootPath; // Api project folder
-builder.Services.AddDatabase(contentRoot);
+builder.Services.AddDatabase(builder.Environment.ContentRootPath);
 
 var app = builder.Build();
 

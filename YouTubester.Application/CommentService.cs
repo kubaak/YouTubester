@@ -1,14 +1,18 @@
-﻿using YouTubester.Domain;
+﻿using YouTubester.Application.Contracts;
+using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence;
 
 namespace YouTubester.Application;
 
 public class CommentService(
-    ICommentRepository repo, IYouTubeIntegration youTubeIntegration, IAiClient ai) 
-    : ICommentService
+    ICommentRepository repo, IYouTubeIntegration youTubeIntegration, IAiClient ai) : ICommentService
 {
     public Task<IEnumerable<ReplyDraft>> GetDraftsAsync() => repo.GetDraftsAsync();
+    public Task PostApprovedAsync(int maxToPost, int paceMs, CancellationToken ct)
+    {
+        throw new NotImplementedException();
+    }
 
     public async Task ApproveDraftAsync(string commentId)
     {
@@ -71,5 +75,59 @@ public class CommentService(
             }
         }
         return drafted;
+    }
+
+    public async Task<BatchDecisionResultDto> ApplyBatchAsync(
+        IEnumerable<DraftDecisionDto> decisions,
+        CancellationToken ct = default)
+    {
+        var results = new List<DraftDecisionResultDto>();
+        int ok = 0, fail = 0;
+
+        foreach (var d in decisions)
+        {
+            try
+            {
+                var draft = await repo.GetDraftAsync(d.CommentId);
+                if (draft is null)
+                {
+                    results.Add(new(d.CommentId, false, "Draft not found"));
+                    fail++;
+                    continue;
+                }
+
+                // optional amend
+                if (!string.IsNullOrWhiteSpace(d.NewText))
+                {
+                    var amended = d.NewText!.Trim();
+                    if (amended.Length > 320) amended = amended[..320]; // YouTube reply cap safety
+                    draft.FinalText = amended;
+                    draft.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+
+                // approval via batch only
+                if (d.Approve)
+                {
+                    draft.Approved = true;
+                    draft.FinalText ??= draft.Suggested;
+                    draft.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+
+                await repo.AddOrUpdateDraftAsync(draft);
+                results.Add(new(d.CommentId, true));
+                ok++;
+            }
+            catch (Exception ex)
+            {
+                results.Add(new(d.CommentId, false, ex.Message));
+                fail++;
+            }
+        }
+
+        return new BatchDecisionResultDto(
+            Total: ok + fail,
+            Succeeded: ok,
+            Failed: fail,
+            Items: results);
     }
 }
