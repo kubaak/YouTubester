@@ -1,4 +1,3 @@
-using Google.Apis.YouTube.v3;
 using Microsoft.Extensions.Options;
 using YouTubester.Application;
 using YouTubester.Integration;
@@ -16,19 +15,8 @@ builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("AI"));
 var contentRoot = builder.Environment.ContentRootPath;
 builder.Services.AddDatabase(contentRoot);
 
-// register integration
-builder.Services.AddSingleton<IYouTubeServiceFactory, YouTubeServiceFactory>();
-builder.Services.AddSingleton<YouTubeService>(sp =>
-{
-    var factory = sp.GetRequiredService<IYouTubeServiceFactory>();
-    return factory.CreateAsync(CancellationToken.None).GetAwaiter().GetResult();
-});
-builder.Services.AddHttpClient<IAiClient, AiClient>((sp, http) =>
-{
-    var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
-    http.BaseAddress = new Uri(ai.Endpoint);
-});
-builder.Services.AddScoped<IYouTubeIntegration, YouTubeIntegration>();
+builder.Services.AddYoutubeServices();
+builder.Services.AddAiClient();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddHostedService<CommentScanWorker>();
