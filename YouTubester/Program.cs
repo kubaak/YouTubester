@@ -192,7 +192,7 @@ namespace YouTubester
 
                     if (!string.IsNullOrWhiteSpace(aiTitle) && replaceTitle)
                     {
-                        video.Snippet.Title = aiTitle!.Length > 80 ? aiTitle[..80].Trim() : aiTitle.Trim();
+                        video.Snippet.Title = aiTitle.Length > 80 ? aiTitle[..80].Trim() : aiTitle.Trim();
                         Console.WriteLine($"Applied AI title: {video.Snippet.Title}");
                     }
                     else if (!string.IsNullOrWhiteSpace(aiTitle))

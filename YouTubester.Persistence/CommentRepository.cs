@@ -5,46 +5,41 @@ namespace YouTubester.Persistence;
 
 public class CommentRepository(YouTubesterDb db) : ICommentRepository
 {
-    public async Task<IEnumerable<ReplyDraft>> GetDraftsAsync()
-        => await db.Drafts.AsNoTracking().OrderByDescending(d => d.UpdatedAt).ToListAsync();
+    public async Task<IEnumerable<Reply>> GetDraftsAsync()
+        => await db.Drafts.AsNoTracking().OrderByDescending(d => d.PostedAt).ToListAsync();
 
-    public async Task<ReplyDraft?> GetDraftAsync(string commentId)
+    public async Task<Reply?> GetDraftAsync(string commentId)
         => await db.Drafts.AsNoTracking().FirstOrDefaultAsync(d => d.CommentId == commentId);
 
-    public async Task AddOrUpdateDraftAsync(ReplyDraft draft)
+    public async Task AddOrUpdateDraftAsync(Reply reply)
     {
-        var existing = await db.Drafts.FirstOrDefaultAsync(d => d.CommentId == draft.CommentId);
+        var existing = await db.Drafts.FirstOrDefaultAsync(d => d.CommentId == reply.CommentId);
         if (existing is null)
         {
-            db.Drafts.Add(draft);
+            db.Drafts.Add(reply);
         }
         else
         {
-            existing.FinalText  = draft.FinalText ?? existing.FinalText;
-            existing.Suggested  = draft.Suggested;
-            existing.Approved   = draft.Approved;
-            existing.UpdatedAt  = DateTimeOffset.UtcNow;
+            existing.FinalText  = reply.FinalText ?? existing.FinalText;
+            existing.Suggested  = reply.Suggested;
+            existing.Approved   = reply.Approved;
         }
         await db.SaveChangesAsync();
     }
 
-    public async Task DeleteDraftAsync(string commentId)
+    public async Task DeleteDraftAsync(string commentId, CancellationToken cancellationToken)
     {
-        var entity = await db.Drafts.FirstOrDefaultAsync(d => d.CommentId == commentId);
+        var entity = await db.Drafts.FirstOrDefaultAsync(d => d.CommentId == commentId, cancellationToken);
         if (entity != null)
         {
             db.Drafts.Remove(entity);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(cancellationToken);
         }
     }
 
-    public async Task<bool> HasPostedAsync(string commentId)
-        => await db.PostedReplies.AnyAsync(r => r.CommentId == commentId);
-
-    public async Task AddPostedAsync(PostedReply reply)
+    public Task<Reply> GetDraft(string commentId, CancellationToken cancellationToken)
     {
-        db.PostedReplies.Add(reply);
-        await db.SaveChangesAsync();
+        return db.Drafts.SingleAsync(d => d.CommentId == commentId, cancellationToken);
     }
 }
 

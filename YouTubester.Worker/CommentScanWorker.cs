@@ -59,9 +59,9 @@ public partial  class CommentScanWorker(
             {
                 if (drafted >= _opt.MaxDraftsPerRun) break;
 
+                var draft = await repo.GetDraftAsync(thread.ParentCommentId);
                 // Skip if we've already posted or drafted
-                if (await repo.HasPostedAsync(thread.ParentCommentId)) continue;
-                if (await repo.GetDraftAsync(thread.ParentCommentId) is not null) continue;
+                if (draft!.PostedAt is not null) continue;
 
                 string reply;
                 if (IsEmojiOnly(thread.Text))
@@ -80,18 +80,14 @@ public partial  class CommentScanWorker(
                         ? "Thanks for the comment! 🙌"
                         : suggestion;
                 }
-
-                var now = DateTimeOffset.UtcNow;
-                await repo.AddOrUpdateDraftAsync(new ReplyDraft
+                
+                await repo.AddOrUpdateDraftAsync(new Reply
                 {
                     CommentId = thread.ParentCommentId,
                     VideoId = thread.VideoId,
                     VideoTitle = video.Title,
                     CommentText = thread.Text,
-                    Suggested = reply,
-                    Approved = false,
-                    CreatedAt = now,
-                    UpdatedAt = now
+                    Suggested = reply
                 });
 
                 drafted++;

@@ -1,4 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Hangfire;
+using Hangfire.Storage.SQLite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace YouTubester.Persistence;
@@ -7,7 +10,6 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddDatabase(this IServiceCollection services, string projectFolder)
     {
-        // EF DbContext (SQLite or Postgres)
         var dbPath = GetDbPath(projectFolder);
 
         services.AddDbContext<YouTubesterDb>(opt =>
@@ -15,6 +17,12 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddHangFireStorage(this IServiceCollection services, IConfiguration configuration, string projectFolder)
+    {
+        var path = GetDbPath(projectFolder);
+        services.AddHangfire(x => x.UseSQLiteStorage(path));
+        return services;
+    }
     public static string GetDbPath(string projectFolder)
     {
         var solutionRoot = Directory.GetParent(projectFolder)!.FullName; // up one

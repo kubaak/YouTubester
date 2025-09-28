@@ -11,6 +11,13 @@ public class CommentsController(ICommentService service) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetDrafts() => Ok(await service.GetDraftsAsync());
+
+    [HttpDelete]
+    public async Task<IActionResult> DeleteDraft(string id, CancellationToken cancellationToken)
+    {
+        await service.GeDeleteAsync(id, cancellationToken);
+        return Ok();
+    }
     
     [HttpPost("approve")]
     public async Task<ActionResult<BatchDecisionResultDto>> BatchApprove(

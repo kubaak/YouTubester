@@ -1,49 +1,23 @@
-﻿using YouTubester.Application.Contracts;
+﻿using Hangfire;
+using YouTubester.Application.Contracts;
+using YouTubester.Application.Jobs;
 using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence;
 
 namespace YouTubester.Application;
 
-public class CommentService(
-    ICommentRepository repo, IYouTubeIntegration youTubeIntegration, IAiClient ai) : ICommentService
+public partial class CommentService(
+    ICommentRepository repo, IYouTubeIntegration youTubeIntegration, IAiClient ai,
+    IBackgroundJobClient backgroundJobClient) : ICommentService
 {
-    public Task<IEnumerable<ReplyDraft>> GetDraftsAsync() => repo.GetDraftsAsync();
-    public Task PostApprovedAsync(int maxToPost, int paceMs, CancellationToken ct)
+    public Task<IEnumerable<Reply>> GetDraftsAsync() => repo.GetDraftsAsync();
+    public async Task GeDeleteAsync(string commentId, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
-    }
-
-    public async Task ApproveDraftAsync(string commentId)
-    {
-        var draft = await repo.GetDraftAsync(commentId);
-        if (draft is null) throw new KeyNotFoundException("Draft not found");
-
-        draft.Approved = true;
-        draft.FinalText ??= draft.Suggested;
-        draft.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await repo.AddOrUpdateDraftAsync(draft);
-    }
-
-    public async Task PostReplyAsync(string commentId)
-    {
-        var draft = await repo.GetDraftAsync(commentId)
-                    ?? throw new KeyNotFoundException("Draft not found");
-        
-        var replyText = draft.FinalText ?? draft.Suggested;
-        
-        await youTubeIntegration.ReplyAsync(commentId, replyText);
-        await repo.AddPostedAsync(new PostedReply
-        {
-            CommentId = draft.CommentId,
-            VideoId = draft.VideoId,
-            ReplyText = replyText,
-            PostedAt = DateTimeOffset.UtcNow
-        });
+        await repo.DeleteDraftAsync(commentId, cancellationToken);
     }
     
-    public async Task<int> ScanAndDraftAsync(int maxDrafts, CancellationToken ct = default)
+    public async Task<int> ScanAndSuggestReplyAsync(int maxDrafts, CancellationToken ct = default)
     {
         var drafted = 0;
         await foreach (var vid in youTubeIntegration.GetAllPublicVideoIdsAsync(ct))
@@ -54,23 +28,24 @@ public class CommentService(
             await foreach (var c in youTubeIntegration.GetUnansweredTopLevelCommentsAsync(vid, ct))
             {
                 if (drafted >= maxDrafts) return drafted;
-                if (await repo.HasPostedAsync(c.ParentCommentId)) continue;
-                if (await repo.GetDraftAsync(c.ParentCommentId) is not null) continue;
+                var draft = await repo.GetDraftAsync(c.ParentCommentId);
+                if (draft is not null) continue;
+                if (draft!.PostedAt is not null) continue;
+                
 
-                var reply = string.IsNullOrWhiteSpace(c.Text) || !System.Text.RegularExpressions.Regex.IsMatch(c.Text, @"\p{L}|\p{N}")
+                var suggestedReply = string.IsNullOrWhiteSpace(c.Text) || !MyRegex().IsMatch(c.Text)
                     ? "🔥🙌"
                     : (await ai.SuggestReplyAsync(video.Title, video.Tags, c.Text, ct) ?? "Thanks for the comment! 🙌");
 
-                await repo.AddOrUpdateDraftAsync(new ReplyDraft {
+                var reply = new Reply
+                {
                     CommentId = c.ParentCommentId,
                     VideoId = c.VideoId,
                     VideoTitle = video.Title,
                     CommentText = c.Text,
-                    Suggested = reply,
-                    Approved = false,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                });
+                    Suggested = suggestedReply,
+                };
+                await repo.AddOrUpdateDraftAsync(reply);
                 drafted++;
             }
         }
@@ -96,23 +71,21 @@ public class CommentService(
                     continue;
                 }
 
-                // optional amend
-                if (!string.IsNullOrWhiteSpace(d.NewText))
+                if (string.IsNullOrWhiteSpace(d.ApprovedText))
                 {
-                    var amended = d.NewText!.Trim();
-                    if (amended.Length > 320) amended = amended[..320]; // YouTube reply cap safety
-                    draft.FinalText = amended;
-                    draft.UpdatedAt = DateTimeOffset.UtcNow;
+                    results.Add(new(d.CommentId, false, "Draft is empty"));
+                    fail++;
+                    continue;
                 }
-
-                // approval via batch only
-                if (d.Approve)
-                {
-                    draft.Approved = true;
-                    draft.FinalText ??= draft.Suggested;
-                    draft.UpdatedAt = DateTimeOffset.UtcNow;
-                }
-
+                
+                var amended = d.ApprovedText.Trim();
+                if (amended.Length > 320) amended = amended[..320]; // YouTube reply cap safety
+                draft.FinalText = amended;
+                draft.Approve();
+                //todo schedule to prevent the rate limits
+                backgroundJobClient.Enqueue<PostApprovedCommentsJob>(j => j.RunOne(draft.CommentId, ct));
+                draft.Schedule(DateTimeOffset.Now);
+                
                 await repo.AddOrUpdateDraftAsync(draft);
                 results.Add(new(d.CommentId, true));
                 ok++;
@@ -130,4 +103,7 @@ public class CommentService(
             Failed: fail,
             Items: results);
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\p{L}|\p{N}")]
+    private static partial System.Text.RegularExpressions.Regex MyRegex();
 }

@@ -1,3 +1,4 @@
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using YouTubester.Application;
 using YouTubester.Integration;
@@ -17,7 +18,9 @@ builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
 
-builder.Services.AddDatabase(builder.Environment.ContentRootPath);
+var rootPath = builder.Environment.ContentRootPath;
+builder.Services.AddDatabase(rootPath);
+builder.Services.AddHangFireStorage(builder.Configuration, rootPath);
 
 var app = builder.Build();
 
@@ -25,6 +28,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseHangfireDashboard();
     var cfg = app.Services.GetRequiredService<IConfiguration>();
     if (cfg.GetValue<bool>("Seed:Enable"))
     {

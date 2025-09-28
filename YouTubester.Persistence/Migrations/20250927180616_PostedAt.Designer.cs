@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using YouTubester.Persistence;
 
@@ -10,9 +11,11 @@ using YouTubester.Persistence;
 namespace YouTubester.Persistence.Migrations
 {
     [DbContext(typeof(YouTubesterDb))]
-    partial class YouTubesterDbModelSnapshot : ModelSnapshot
+    [Migration("20250927180616_PostedAt")]
+    partial class PostedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
@@ -57,9 +60,6 @@ namespace YouTubester.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("PostedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("Scheduled")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Suggested")

@@ -11,4 +11,8 @@
       <ProjectReference Include="..\YouTubester.Persistence\YouTubester.Persistence.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Hangfire.Core" Version="1.8.21" />
+    </ItemGroup>
+
 </Project>

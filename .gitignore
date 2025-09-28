@@ -61,6 +61,7 @@ nunit-*.xml
 # JetBrains Rider
 .idea/
 *.sln.iml
+*DotSettings.user
 
 # Youtube Tokens
 *.TokenResponse-user
