@@ -11,8 +11,8 @@ using YouTubester.Persistence;
 namespace YouTubester.Persistence.Migrations
 {
     [DbContext(typeof(YouTubesterDb))]
-    [Migration("20250927180616_PostedAt")]
-    partial class PostedAt
+    [Migration("20250929214822_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -20,40 +20,16 @@ namespace YouTubester.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
 
-            modelBuilder.Entity("YouTubester.Domain.PostedReply", b =>
+            modelBuilder.Entity("YouTubester.Domain.Reply", b =>
                 {
                     b.Property<string>("CommentId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("PostedAt")
+                    b.Property<DateTimeOffset?>("ApprovedAt")
                         .HasColumnType("TEXT");
-
-                    b.Property<string>("ReplyText")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("VideoId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("CommentId");
-
-                    b.ToTable("PostedReplies");
-                });
-
-            modelBuilder.Entity("YouTubester.Domain.ReplyDraft", b =>
-                {
-                    b.Property<string>("CommentId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Approved")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("CommentText")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("FinalText")
@@ -62,8 +38,16 @@ namespace YouTubester.Persistence.Migrations
                     b.Property<DateTime?>("PostedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Suggested")
-                        .IsRequired()
+                    b.Property<DateTime>("PulledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("SuggestedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SuggestedText")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("VideoId")
@@ -78,7 +62,7 @@ namespace YouTubester.Persistence.Migrations
 
                     b.HasIndex("VideoId");
 
-                    b.ToTable("Drafts");
+                    b.ToTable("Replies");
                 });
 #pragma warning restore 612, 618
         }
