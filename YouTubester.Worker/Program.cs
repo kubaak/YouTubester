@@ -13,7 +13,7 @@ builder.Services.AddDatabase(rootPath);
 
 builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddAiClient(builder.Configuration);
-builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddHostedService<CommentScanWorker>();
 builder.Services.AddScoped<PostApprovedCommentsJob>();
 builder.Services.AddHangFireStorage(builder.Configuration, rootPath);

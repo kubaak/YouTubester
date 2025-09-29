@@ -13,7 +13,7 @@ builder.Services.AddSwaggerGen();
 // Add your DI here
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
-builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();

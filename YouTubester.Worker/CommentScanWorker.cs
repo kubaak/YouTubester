@@ -40,33 +40,33 @@ public partial  class CommentScanWorker(
 
     private static bool IsEmojiOnly(string text) => !MyRegex().IsMatch(text);
 
-    private async Task<int> ScanOnceAsync(CancellationToken ct)
+    private async Task<int> ScanOnceAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
         var yt   = scope.ServiceProvider.GetRequiredService<IYouTubeIntegration>();
         var ai   = scope.ServiceProvider.GetRequiredService<IAiClient>();
-        var repo = scope.ServiceProvider.GetRequiredService<ICommentRepository>();
+        var repo = scope.ServiceProvider.GetRequiredService<IReplyRepository>();
 
         var drafted = 0;
-        await foreach (var videoId in yt.GetAllPublicVideoIdsAsync(ct))
+        await foreach (var videoId in yt.GetAllPublicVideoIdsAsync(cancellationToken))
         {
             if (drafted >= _opt.MaxDraftsPerRun) break;
 
-            var video = await yt.GetVideoAsync(videoId, ct);
+            var video = await yt.GetVideoAsync(videoId, cancellationToken);
             if (video is null || !video.IsPublic) continue;
 
-            await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(videoId, ct))
+            await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(videoId, cancellationToken))
             {
                 if (drafted >= _opt.MaxDraftsPerRun) break;
 
-                var draft = await repo.GetDraftAsync(thread.ParentCommentId);
+                var draft = await repo.GetReplyAsync(thread.ParentCommentId, cancellationToken);
                 // Skip if we've already posted or drafted
                 if (draft!.PostedAt is not null) continue;
 
-                string reply;
+                string replyText;
                 if (IsEmojiOnly(thread.Text))
                 {
-                    reply = "🔥🙌";
+                    replyText = "🔥🙌";
                 }
                 else
                 {
@@ -74,21 +74,18 @@ public partial  class CommentScanWorker(
                         video.Title,
                         video.Tags,
                         thread.Text,
-                        ct);
+                        cancellationToken);
 
-                    reply = string.IsNullOrWhiteSpace(suggestion)
+                    replyText = string.IsNullOrWhiteSpace(suggestion)
                         ? "Thanks for the comment! 🙌"
                         : suggestion;
                 }
                 
-                await repo.AddOrUpdateDraftAsync(new Reply
-                {
-                    CommentId = thread.ParentCommentId,
-                    VideoId = thread.VideoId,
-                    VideoTitle = video.Title,
-                    CommentText = thread.Text,
-                    Suggested = reply
-                });
+                var reply = Reply.Create(thread.ParentCommentId, thread.VideoId, video.Title, thread.Text,
+                    DateTimeOffset.Now);
+                reply.SuggestText(replyText, DateTimeOffset.Now);
+
+                await repo.AddOrUpdateReplyAsync(reply, cancellationToken);
 
                 drafted++;
             }

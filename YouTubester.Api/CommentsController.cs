@@ -10,7 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 public class CommentsController(ICommentService service) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetDrafts() => Ok(await service.GetDraftsAsync());
+    public async Task<IActionResult> GetDrafts(CancellationToken cancellationToken = default) 
+        => Ok(await service.GetDraftsAsync(cancellationToken));
 
     [HttpDelete]
     public async Task<IActionResult> DeleteDraft(string id, CancellationToken cancellationToken)
@@ -22,10 +23,10 @@ public class CommentsController(ICommentService service) : ControllerBase
     [HttpPost("approve")]
     public async Task<ActionResult<BatchDecisionResultDto>> BatchApprove(
         [FromBody] IEnumerable<DraftDecisionDto> decisions,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (decisions is null) return BadRequest("Missing decisions.");
-        var result = await service.ApplyBatchAsync(decisions, ct);
+        var result = await service.ApplyBatchAsync(decisions, cancellationToken);
         return Ok(result);
     }
 }

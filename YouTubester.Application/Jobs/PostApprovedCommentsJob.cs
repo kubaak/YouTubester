@@ -3,19 +3,19 @@ using YouTubester.Persistence;
 
 namespace YouTubester.Application.Jobs;
 
-public sealed class PostApprovedCommentsJob(ICommentRepository repo, IYouTubeIntegration yt)
+public sealed class PostApprovedCommentsJob(IReplyRepository repo, IYouTubeIntegration yt)
 {
-    public async Task RunOne(string commentId, CancellationToken ct = default)
+    public async Task RunOne(string commentId, CancellationToken cancellationToken = default)
     {
-        var draft = await repo.GetDraftAsync(commentId);
+        var draft = await repo.GetReplyAsync(commentId, cancellationToken);
         if (draft == null)
         {
             throw new ArgumentException($"The draft {commentId} could not be found.");
         }
 
         //todo transaction
-        await yt.ReplyAsync(commentId, draft.FinalText!, ct);
+        await yt.ReplyAsync(commentId, draft.FinalText!, cancellationToken);
         draft.Post(DateTimeOffset.Now);
-        await repo.AddOrUpdateDraftAsync(draft);
+        await repo.AddOrUpdateReplyAsync(draft, cancellationToken);
     }
 }

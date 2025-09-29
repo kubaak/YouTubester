@@ -5,7 +5,7 @@ namespace YouTubester.Application;
 
 public interface ICommentService
 {
-    Task<IEnumerable<Reply>> GetDraftsAsync();
+    Task<IEnumerable<Reply>> GetDraftsAsync(CancellationToken cancellationToken);
     Task GeDeleteAsync(string commentId, CancellationToken cancellationToken);
-    Task<BatchDecisionResultDto> ApplyBatchAsync(IEnumerable<DraftDecisionDto> decisions, CancellationToken ct = default);
+    Task<BatchDecisionResultDto> ApplyBatchAsync(IEnumerable<DraftDecisionDto> decisions, CancellationToken cancellationToken);
 }
