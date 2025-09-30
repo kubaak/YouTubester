@@ -15,7 +15,7 @@ builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
-builder.Services.AddScoped<ICommentService, CommentService>();
+builder.Services.AddScoped<IReplyService, ReplyService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
 
 var rootPath = builder.Environment.ContentRootPath;

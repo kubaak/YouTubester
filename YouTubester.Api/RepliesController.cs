@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/[controller]")]
-public class CommentsController(ICommentService service) : ControllerBase
+public class RepliesController(IReplyService service) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetDrafts(CancellationToken cancellationToken = default) 

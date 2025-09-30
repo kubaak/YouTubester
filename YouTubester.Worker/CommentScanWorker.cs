@@ -59,9 +59,9 @@ public partial  class CommentScanWorker(
             {
                 if (drafted >= _opt.MaxDraftsPerRun) break;
 
-                var draft = await repo.GetReplyAsync(thread.ParentCommentId, cancellationToken);
-                // Skip if we've already posted or drafted
-                if (draft!.PostedAt is not null) continue;
+                var existingReply = await repo.GetReplyAsync(thread.ParentCommentId, cancellationToken);
+                // Skip if we've already pulled this
+                if (existingReply is not null) continue;
 
                 string replyText;
                 if (IsEmojiOnly(thread.Text))

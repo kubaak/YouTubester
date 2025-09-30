@@ -7,9 +7,9 @@ using YouTubester.Persistence;
 
 namespace YouTubester.Application;
 
-public class CommentService(
+public class ReplyService(
     IReplyRepository repo, IYouTubeIntegration youTubeIntegration, IAiClient ai,
-    IBackgroundJobClient backgroundJobClient) : ICommentService
+    IBackgroundJobClient backgroundJobClient) : IReplyService
 {
     public Task<IEnumerable<Reply>> GetDraftsAsync(CancellationToken cancellationToken) 
         => repo.GetRepliesAsync(cancellationToken);

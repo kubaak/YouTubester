@@ -3,7 +3,7 @@ using YouTubester.Domain;
 
 namespace YouTubester.Application;
 
-public interface ICommentService
+public interface IReplyService
 {
     Task<IEnumerable<Reply>> GetDraftsAsync(CancellationToken cancellationToken);
     Task GeDeleteAsync(string commentId, CancellationToken cancellationToken);
