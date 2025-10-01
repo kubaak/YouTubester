@@ -4,14 +4,17 @@ namespace YouTubester.Integration;
 
 public interface IYouTubeIntegration
 {
-    Task<string> GetMyChannelIdAsync(CancellationToken ct = default);
-    
-    IAsyncEnumerable<string> GetAllPublicVideoIdsAsync(CancellationToken ct = default);
-    Task<VideoDto?> GetVideoAsync(string videoId, CancellationToken ct = default);
-    
+    Task<string> GetMyChannelIdAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<string> GetAllPublicVideoIdsAsync(CancellationToken cancellationToken);
+    Task<VideoDto?> GetVideoAsync(string videoId, CancellationToken cancellationToken);
     IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
-        string videoId,
-        CancellationToken ct = default);
+        string videoId, CancellationToken cancellationToken);
+    Task ReplyAsync(string parentCommentId, string text, CancellationToken cancellationToken);
     
-    Task ReplyAsync(string parentCommentId, string text, CancellationToken ct = default);
+    Task<VideoDetailsDto?> GetVideoDetailsAsync(string videoId, CancellationToken cancellationToken);
+    Task UpdateVideoAsync(string videoId, string title, string description, IReadOnlyList<string> tags,
+        string? categoryId, string? defaultLanguage, string? defaultAudioLanguage, 
+        (double lat, double lng)? location, string? locationDescription, CancellationToken cancellationToken);
+    Task<IReadOnlyList<string>> GetPlaylistsContainingAsync(string videoId, CancellationToken cancellationToken);
+    Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken);
 }

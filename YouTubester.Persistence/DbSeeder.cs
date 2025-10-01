@@ -5,9 +5,9 @@ namespace YouTubester.Persistence;
 
 public static class DbSeeder
 {
-    public static async Task SeedAsync(YouTubesterDb db, CancellationToken ct = default)
+    public static async Task SeedAsync(YouTubesterDb db, CancellationToken cancellationToken = default)
     {
-        if (!await db.Replies.AnyAsync(ct))
+        if (!await db.Replies.AnyAsync(cancellationToken))
         {
             db.Replies.AddRange(
                 Reply.Create(
@@ -15,7 +15,7 @@ public static class DbSeeder
                     DateTimeOffset.Now)
             );
 
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAsync(cancellationToken);
         }
     }
 }

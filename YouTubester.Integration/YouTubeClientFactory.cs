@@ -7,17 +7,17 @@ using YouTubester.Integration.Configuration;
 
 namespace YouTubester.Integration;
 
-public sealed class YouTubeClientFactory(IOptions<YouTubeOptions> opt) : IYouTubeClientFactory
+public sealed class YouTubeClientFactory(IOptions<YouTubeOptions> options) : IYouTubeClientFactory
 {
-    private readonly YouTubeOptions _opt = opt.Value;
+    private readonly YouTubeOptions _opt = options.Value;
 
-    public async Task<YouTubeService> CreateAsync(CancellationToken ct = default)
+    public async Task<YouTubeService> CreateAsync(CancellationToken cancellationToken)
     {
         var cred = await GoogleWebAuthorizationBroker.AuthorizeAsync(
             new ClientSecrets { ClientId = _opt.ClientId, ClientSecret = _opt.ClientSecret },
             new[] { YouTubeService.Scope.YoutubeForceSsl },
             "user",
-            ct,
+            cancellationToken,
             new FileDataStore("YouTubeAuth", true)
         );
 

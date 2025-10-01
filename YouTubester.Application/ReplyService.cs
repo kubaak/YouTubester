@@ -7,16 +7,15 @@ using YouTubester.Persistence;
 
 namespace YouTubester.Application;
 
-public class ReplyService(
-    IReplyRepository repo, IYouTubeIntegration youTubeIntegration, IAiClient ai,
-    IBackgroundJobClient backgroundJobClient) : IReplyService
+public class ReplyService(IReplyRepository repository, IBackgroundJobClient backgroundJobClient) 
+    : IReplyService
 {
     public Task<IEnumerable<Reply>> GetDraftsAsync(CancellationToken cancellationToken) 
-        => repo.GetRepliesAsync(cancellationToken);
+        => repository.GetRepliesAsync(cancellationToken);
     
     public async Task GeDeleteAsync(string commentId, CancellationToken cancellationToken)
     {
-        await repo.DeleteReplyAsync(commentId, cancellationToken);
+        await repository.DeleteReplyAsync(commentId, cancellationToken);
     }
 
     public async Task<BatchDecisionResultDto> ApplyBatchAsync(
@@ -29,7 +28,7 @@ public class ReplyService(
         {
             try
             {
-                var draft = await repo.GetReplyAsync(d.CommentId, cancellationToken);
+                var draft = await repository.GetReplyAsync(d.CommentId, cancellationToken);
                 if (draft is null)
                 {
                     results.Add(new(d.CommentId, false, "Draft not found"));
@@ -45,10 +44,10 @@ public class ReplyService(
                 }
                 
                 draft.ApproveText(d.ApprovedText, DateTimeOffset.Now);
-                //todo schedule to prevent the rate limits
-                backgroundJobClient.Enqueue<PostApprovedCommentsJob>(j => j.RunOne(draft.CommentId, cancellationToken));
+                //todo from configuration
+                backgroundJobClient.Schedule<PostApprovedRepliesJob>(j => j.Run(draft.CommentId, JobCancellationToken.Null),TimeSpan.FromSeconds(10));
                 
-                await repo.AddOrUpdateReplyAsync(draft, cancellationToken);
+                await repository.AddOrUpdateReplyAsync(draft, cancellationToken);
                 results.Add(new(d.CommentId, true));
                 ok++;
             }

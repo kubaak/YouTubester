@@ -9,19 +9,19 @@ namespace YouTubester.Integration;
 
 public interface IYouTubeServiceFactory
 {
-    Task<YouTubeService> CreateAsync(CancellationToken ct = default);
+    Task<YouTubeService> CreateAsync(CancellationToken cancellationToken);
 }
 
-public sealed class YouTubeServiceFactory(IOptions<YouTubeAuthOptions> opt) : IYouTubeServiceFactory
+public sealed class YouTubeServiceFactory(IOptions<YouTubeAuthOptions> options) : IYouTubeServiceFactory
 {
-    public async Task<YouTubeService> CreateAsync(CancellationToken ct = default)
+    public async Task<YouTubeService> CreateAsync(CancellationToken cancellationToken)
     {
-        var o = opt.Value;
+        var o = options.Value;
         var credentials = await GoogleWebAuthorizationBroker.AuthorizeAsync(
             new ClientSecrets { ClientId = o.ClientId, ClientSecret = o.ClientSecret },
             [YouTubeService.Scope.YoutubeForceSsl],
             o.UserName,
-            ct,
+            cancellationToken,
             new FileDataStore(o.TokenStoreFolder, true)
         );
 

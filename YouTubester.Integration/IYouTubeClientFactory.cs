@@ -4,5 +4,5 @@ namespace YouTubester.Integration;
 
 public interface IYouTubeClientFactory
 {
-    Task<YouTubeService> CreateAsync(CancellationToken ct = default);
+    Task<YouTubeService> CreateAsync(CancellationToken cancellationToken);
 }
