@@ -10,12 +10,24 @@ namespace YouTubester.Application;
 public class ReplyService(IReplyRepository repository, IBackgroundJobClient backgroundJobClient) 
     : IReplyService
 {
-    public Task<IEnumerable<Reply>> GetDraftsAsync(CancellationToken cancellationToken) 
-        => repository.GetRepliesAsync(cancellationToken);
+    public Task<IEnumerable<Reply>> GetRepliesForApprovalAsync(CancellationToken cancellationToken) 
+        => repository.GetRepliesForApprovalAsync(cancellationToken);
     
-    public async Task GeDeleteAsync(string commentId, CancellationToken cancellationToken)
+    public async Task<Reply?> DeleteAsync(string commentId, CancellationToken cancellationToken)
     {
-        await repository.DeleteReplyAsync(commentId, cancellationToken);
+        return await repository.DeleteReplyAsync(commentId, cancellationToken);
+    }
+
+    public async Task<Reply?> IgnoreAsync(string commentId, CancellationToken cancellationToken)
+    {
+        var reply = await repository.GetReplyAsync(commentId, cancellationToken);
+        if (reply is not null)
+        {
+            reply.Ignore();
+            await repository.AddOrUpdateReplyAsync(reply, cancellationToken);
+        }
+        
+        return reply;
     }
 
     public async Task<BatchDecisionResultDto> ApplyBatchAsync(
