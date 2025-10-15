@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/replies")]
+[Tags("Replies")]
 public class RepliesController(IReplyService service) : ControllerBase
 {
     [HttpGet]

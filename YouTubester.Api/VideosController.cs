@@ -7,6 +7,7 @@ namespace YouTubester.Api;
 
 [ApiController]
 [Route("api/videos")]
+[Tags("Videos")]
 public sealed class VideosController(IBackgroundJobClient  jobClient) : ControllerBase
 {
     [HttpPost("copy-template")]
