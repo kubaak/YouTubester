@@ -1,5 +1,6 @@
 ﻿using YouTubester.Application;
 using YouTubester.Application.Contracts;
+using YouTubester.Application.Contracts.Replies;
 using YouTubester.Domain;
 
 namespace YouTubester.Api;
@@ -30,22 +31,25 @@ public class RepliesController(IReplyService service) : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
 
     public async Task<ActionResult<BatchDecisionResultDto>> BatchApprove(
-        [FromBody] IEnumerable<DraftDecisionDto> decisions,
+        [FromBody] DraftDecisionDto[] decisions,
         CancellationToken cancellationToken)
     {
-        if (decisions is null) return BadRequest("Missing decisions.");
+        if (decisions.Length == 0) return BadRequest("Missing decisions.");
         var result = await service.ApplyBatchAsync(decisions, cancellationToken);
         return Ok(result);
     }
-
-    [HttpPut("ignore/{id}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Ignore([FromRoute] string id, CancellationToken cancellationToken)
+    
+    [HttpPost("batch-ignore")]
+    [ProducesResponseType(typeof(BatchIgnoreResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<BatchIgnoreResult>> BatchIgnore(
+        [FromBody] string[] commentIds,
+        CancellationToken ct)
     {
-        var reply = await service.IgnoreAsync(id, cancellationToken);
-        if (reply is null) return NotFound();
-        
-        return Ok(reply);
+        if (commentIds.Length == 0)
+            return BadRequest(new { error = "CommentIds cannot be empty." });
+
+        var result = await service.IgnoreBatchAsync(commentIds, ct);
+        return Ok(result);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using YouTubester.Application.Contracts;
+using YouTubester.Application.Contracts.Replies;
 using YouTubester.Application.Jobs;
 using YouTubester.Domain;
 using YouTubester.Integration;
@@ -18,16 +19,42 @@ public class ReplyService(IReplyRepository repository, IBackgroundJobClient back
         return await repository.DeleteReplyAsync(commentId, cancellationToken);
     }
 
-    public async Task<Reply?> IgnoreAsync(string commentId, CancellationToken cancellationToken)
+    public async Task<BatchIgnoreResult> IgnoreBatchAsync(string[] commentIds, CancellationToken ct)
     {
-        var reply = await repository.GetReplyAsync(commentId, cancellationToken);
-        if (reply is not null)
-        {
-            reply.Ignore();
-            await repository.AddOrUpdateReplyAsync(reply, cancellationToken);
-        }
-        
-        return reply;
+        var ids = commentIds.Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (ids.Length == 0) return new BatchIgnoreResult(0,0,0,0,0,[],[],[],[]);
+
+        var matches = await repository.LoadStatusesAsync(ids, ct);
+        var matchedSet = matches.Select(m => m.CommentId).ToHashSet(StringComparer.Ordinal);
+
+        var notFound = ids.Where(id => !matchedSet.Contains(id)).ToArray();
+        var alreadyIgnored = matches.Where(m => m.Status == ReplyStatus.Ignored).Select(m => m.CommentId).ToArray();
+        var skippedPosted  = matches.Where(m => m.Status == ReplyStatus.Posted).Select(m => m.CommentId).ToArray();
+
+        var toIgnore = matches
+            .Where(m => m.Status != ReplyStatus.Posted && m.Status != ReplyStatus.Ignored)
+            .Select(m => m.CommentId)
+            .ToArray();
+
+        var actuallyIgnored = toIgnore.Length == 0
+            ? []
+            : await repository.IgnoreManyAsync(toIgnore, ct);
+
+        return new BatchIgnoreResult(
+            Requested: ids.Length,
+            Ignored: actuallyIgnored.Length,
+            AlreadyIgnored: alreadyIgnored.Length,
+            SkippedPosted: skippedPosted.Length,
+            NotFound: notFound.Length,
+            IgnoredIds: actuallyIgnored,
+            AlreadyIgnoredIds: alreadyIgnored,
+            SkippedPostedIds: skippedPosted,
+            NotFoundIds: notFound
+        );
     }
 
     public async Task<BatchDecisionResultDto> ApplyBatchAsync(
