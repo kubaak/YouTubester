@@ -12,10 +12,10 @@ public enum VideoVisibility
 
 public sealed class Video
 {
-    public string ChannelId { get; private set; } = default!;
+    public string UploadsPlaylistId { get; private set; } = default!;
     public string VideoId { get; private set; } = default!;
-    public string Title { get; private set; } = default!;
-    public string Description { get; private set; } = default!;
+    public string? Title { get; private set; }
+    public string? Description { get; private set; }
     public string[] Tags { get; private set; } = [];
     public TimeSpan Duration { get; private set; }
     public VideoVisibility Visibility { get; private set; }
@@ -27,13 +27,17 @@ public sealed class Video
     public string? LocationDescription { get; private set; }
     public DateTimeOffset CachedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+    public string? ThumbnailUrl { get; private set; }
+
     public bool IsShort => Duration <= TimeSpan.FromSeconds(60);
+
     public string Url => $"https://www.youtube.com/watch?v={VideoId}";
+
     public static Video Create(
-        string channelId,
+        string uploadsPlaylistId,
         string videoId,
-        string title,
-        string description,
+        string? title,
+        string? description,
         DateTimeOffset publishedAt,
         TimeSpan duration,
         VideoVisibility visibility,
@@ -43,11 +47,12 @@ public sealed class Video
         string? defaultAudioLanguage,
         GeoLocation? location,
         string? locationDescription,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        string? thumbnailUrl)
     {
         return new Video
         {
-            ChannelId = channelId,
+            UploadsPlaylistId = uploadsPlaylistId,
             VideoId = videoId,
             Title = title,
             Description = description,
@@ -60,14 +65,15 @@ public sealed class Video
             DefaultAudioLanguage = defaultAudioLanguage,
             Location = location,
             LocationDescription = locationDescription,
+            ThumbnailUrl = thumbnailUrl,
             CachedAt = nowUtc,
             UpdatedAt = nowUtc
         };
     }
-    
+
     public bool ApplyDetails(
-        string title,
-        string description,
+        string? title,
+        string? description,
         DateTimeOffset publishedAt,
         TimeSpan duration,
         VideoVisibility visibility,
@@ -77,7 +83,8 @@ public sealed class Video
         string? defaultAudioLanguage,
         GeoLocation? location,
         string? locationDescription,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        string? thumbnailUrl)
     {
         var dirty = false;
 
@@ -86,7 +93,7 @@ public sealed class Video
             Title = title;
             dirty = true;
         }
-        
+
         if (!StringComparer.Ordinal.Equals(Description, description))
         {
             Description = description;
@@ -111,11 +118,15 @@ public sealed class Video
             dirty = true;
         }
 
-        var newTags = (tags ?? Array.Empty<string>()).ToArray();
-        if (!Tags.SequenceEqual(newTags, StringComparer.Ordinal))
+        if (tags is not null)
         {
-            Tags = newTags;
-            dirty = true;
+            var newTags = tags.ToArray();
+
+            if (!Tags.SequenceEqual(newTags, StringComparer.Ordinal))
+            {
+                Tags = newTags;
+                dirty = true;
+            }
         }
 
         if (!StringComparer.Ordinal.Equals(CategoryId, categoryId))
@@ -148,9 +159,21 @@ public sealed class Video
             dirty = true;
         }
 
-        if (dirty) UpdatedAt = nowUtc;
+        if (thumbnailUrl is not null && !StringComparer.Ordinal.Equals(ThumbnailUrl, thumbnailUrl))
+        {
+            ThumbnailUrl = thumbnailUrl;
+            dirty = true;
+        }
+
+        if (dirty)
+        {
+            UpdatedAt = nowUtc;
+        }
+
         return dirty;
     }
 
-    private Video() { }
+    private Video()
+    {
+    }
 }

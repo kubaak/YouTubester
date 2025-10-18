@@ -1,6 +1,5 @@
 namespace YouTubester.Integration.Dtos;
 
-[Obsolete("Use domain video instead")]
 public sealed record VideoDetailsDto(
     string Id,
     string Title,

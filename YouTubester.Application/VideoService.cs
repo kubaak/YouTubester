@@ -9,13 +9,13 @@ namespace YouTubester.Application;
 public class VideoService(IVideoRepository repo, IYouTubeIntegration yt): IVideoService
 {
     private const int BatchCapacity = 100;
-    public async Task<SyncVideosResult> SyncChannelVideosAsync(CancellationToken ct)
+    public async Task<SyncVideosResult> SyncChannelVideosAsync(string uploadPlaylistId, CancellationToken ct)
     {
         var cachedAt = DateTimeOffset.UtcNow;
         var total = 0;
         var batch = new ConcurrentDictionary<string,Video>();
         
-        await foreach (var videoDto in yt.GetAllVideosAsync(null, ct))
+        await foreach (var videoDto in yt.GetAllVideosAsync(uploadPlaylistId,null, ct))
         {
             //We already have this video (race condition)
             if (batch.ContainsKey(videoDto.VideoId))
@@ -25,7 +25,7 @@ public class VideoService(IVideoRepository repo, IYouTubeIntegration yt): IVideo
             total++;
             
             batch.TryAdd(videoDto.VideoId, Video.Create(
-                videoDto.ChannelId,
+                uploadPlaylistId,
                 videoDto.VideoId, 
                 videoDto.Title,
                 videoDto.Description,
@@ -37,7 +37,8 @@ public class VideoService(IVideoRepository repo, IYouTubeIntegration yt): IVideo
                 videoDto.DefaultLanguage, videoDto.DefaultAudioLanguage,
                 videoDto.Location.HasValue ? new GeoLocation(videoDto.Location.Value.lat, videoDto.Location.Value.lng) : null,
                 videoDto.LocationDescription,
-                cachedAt
+                cachedAt,
+                videoDto.ThumbnailUrl
                 ));
 
             // flush in batches to keep memory/transactions modest
@@ -54,8 +55,8 @@ public class VideoService(IVideoRepository repo, IYouTubeIntegration yt): IVideo
         // For a more detailed result, have repo return (inserted, updated). Here we just report total touched.
         return new SyncVideosResult(Inserted: 0, Updated: 0, Total: total);
     }
-    
-    static VideoVisibility MapVisibility(string? privacyStatus, DateTimeOffset? publishAtUtc, DateTimeOffset nowUtc)
+
+    private static VideoVisibility MapVisibility(string? privacyStatus, DateTimeOffset? publishAtUtc, DateTimeOffset nowUtc)
     {
         if (string.Equals(privacyStatus, "private", StringComparison.OrdinalIgnoreCase)
             && publishAtUtc.HasValue

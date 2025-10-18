@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using YouTubester.Application;
 using YouTubester.Integration;
 using YouTubester.Persistence;
+using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Replies;
 using YouTubester.Persistence.Videos;
 
@@ -14,6 +15,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
+builder.Services.AddScoped<IChannelRepository, ChannelRepository>();
 builder.Services.AddScoped<IVideoRepository, VideoRepository>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<IReplyService, ReplyService>();

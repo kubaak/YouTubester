@@ -1,11 +1,10 @@
 ﻿namespace YouTubester.Integration.Dtos;
 
 public sealed record VideoDto(
-    string ChannelId,
     string VideoId,
     string Title,
     string Description,
-    string[] Tags,
+    IEnumerable<string>? Tags,
     TimeSpan Duration,
     string PrivacyStatus,
     bool IsShort,
@@ -14,5 +13,6 @@ public sealed record VideoDto(
     string? DefaultLanguage,
     string? DefaultAudioLanguage,
     (double lat, double lng)? Location,
-    string? LocationDescription
+    string? LocationDescription,
+    string? ThumbnailUrl
 );

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using YouTubester.Persistence;
 
@@ -10,9 +11,11 @@ using YouTubester.Persistence;
 namespace YouTubester.Persistence.Migrations
 {
     [DbContext(typeof(YouTubesterDb))]
-    partial class YouTubesterDbModelSnapshot : ModelSnapshot
+    [Migration("20251018113709_Channels")]
+    partial class Channels
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
@@ -85,7 +88,7 @@ namespace YouTubester.Persistence.Migrations
 
             modelBuilder.Entity("YouTubester.Domain.Video", b =>
                 {
-                    b.Property<string>("UploadsPlaylistId")
+                    b.Property<string>("UploadPlaylistId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("VideoId")
@@ -104,6 +107,7 @@ namespace YouTubester.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<TimeSpan>("Duration")
@@ -119,10 +123,8 @@ namespace YouTubester.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ThumbnailUrl")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Title")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -131,7 +133,7 @@ namespace YouTubester.Persistence.Migrations
                     b.Property<int>("Visibility")
                         .HasColumnType("INTEGER");
 
-                    b.HasKey("UploadsPlaylistId", "VideoId");
+                    b.HasKey("UploadPlaylistId", "VideoId");
 
                     b.HasIndex("UpdatedAt");
 
@@ -142,7 +144,7 @@ namespace YouTubester.Persistence.Migrations
                 {
                     b.OwnsOne("YouTubester.Domain.GeoLocation", "Location", b1 =>
                         {
-                            b1.Property<string>("VideoUploadsPlaylistId")
+                            b1.Property<string>("VideoUploadPlaylistId")
                                 .HasColumnType("TEXT");
 
                             b1.Property<string>("VideoId")
@@ -154,12 +156,12 @@ namespace YouTubester.Persistence.Migrations
                             b1.Property<double>("Longitude")
                                 .HasColumnType("REAL");
 
-                            b1.HasKey("VideoUploadsPlaylistId", "VideoId");
+                            b1.HasKey("VideoUploadPlaylistId", "VideoId");
 
                             b1.ToTable("Videos");
 
                             b1.WithOwner()
-                                .HasForeignKey("VideoUploadsPlaylistId", "VideoId");
+                                .HasForeignKey("VideoUploadPlaylistId", "VideoId");
                         });
 
                     b.Navigation("Location");

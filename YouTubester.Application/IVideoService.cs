@@ -4,5 +4,5 @@ namespace YouTubester.Application;
 
 public interface IVideoService
 {
-    Task<SyncVideosResult> SyncChannelVideosAsync(CancellationToken ct);
+    Task<SyncVideosResult> SyncChannelVideosAsync(string uploadPlaylistId, CancellationToken ct);
 }

@@ -3,12 +3,14 @@ using Microsoft.Extensions.Options;
 using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence;
+using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Replies;
+using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Worker;
 
-public partial  class CommentScanWorker(
-    ILogger<CommentScanWorker> log, 
+public partial class CommentScanWorker(
+    ILogger<CommentScanWorker> log,
     IServiceScopeFactory scopeFactory,
     IOptions<WorkerOptions> opt)
     : BackgroundService
@@ -35,63 +37,87 @@ public partial  class CommentScanWorker(
             {
                 log.LogError(ex, "Scan failed");
             }
-        }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private static bool IsEmojiOnly(string text) => !MyRegex().IsMatch(text);
+    private static bool IsEmojiOnly(string text)
+    {
+        return !MyRegex().IsMatch(text);
+    }
 
     private async Task<int> ScanOnceAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
-        var yt   = scope.ServiceProvider.GetRequiredService<IYouTubeIntegration>();
-        var ai   = scope.ServiceProvider.GetRequiredService<IAiClient>();
-        var repo = scope.ServiceProvider.GetRequiredService<IReplyRepository>();
+        var yt = scope.ServiceProvider.GetRequiredService<IYouTubeIntegration>();
+        var ai = scope.ServiceProvider.GetRequiredService<IAiClient>();
+        var channelRepository = scope.ServiceProvider.GetRequiredService<IChannelRepository>();
+        var videoRepository = scope.ServiceProvider.GetRequiredService<IVideoRepository>();
+        var replyRepository = scope.ServiceProvider.GetRequiredService<IReplyRepository>();
 
+        var channels = await channelRepository.GetChannelsAsync(cancellationToken);
         var drafted = 0;
-        //todo load from the cache instead
-        await foreach (var video in yt.GetAllVideosAsync(null, cancellationToken))
+        foreach (var channel in channels)
         {
-            if (drafted >= _opt.MaxDraftsPerRun) break;
+            var channelId = channel.ChannelId;
 
-
-            if (!video.IsPublic) continue;
-
-            await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(video.VideoId, cancellationToken))
+            foreach (var video in await videoRepository.GetAllVideosAsync(cancellationToken))
             {
-                if (drafted >= _opt.MaxDraftsPerRun) break;
-
-                var existingReply = await repo.GetReplyAsync(thread.ParentCommentId, cancellationToken);
-                // Skip if we've already pulled this
-                if (existingReply is not null) continue;
-
-                string replyText;
-                if (IsEmojiOnly(thread.Text))
+                if (drafted >= _opt.MaxDraftsPerRun)
                 {
-                    replyText = "🔥🙌";
+                    break;
                 }
-                else
+
+
+                if (video.Visibility != VideoVisibility.Public)
                 {
-                    var suggestion = await ai.SuggestReplyAsync(
-                        video.Title,
-                        video.Tags,
-                        thread.Text,
-                        cancellationToken);
-
-                    replyText = string.IsNullOrWhiteSpace(suggestion)
-                        ? "Thanks for the comment! 🙌"
-                        : suggestion;
+                    continue;
                 }
-                
-                var reply = Reply.Create(thread.ParentCommentId, thread.VideoId, video.Title, thread.Text,
-                    DateTimeOffset.Now);
-                reply.SuggestText(replyText, DateTimeOffset.Now);
 
-                await repo.AddOrUpdateReplyAsync(reply, cancellationToken);
+                await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(channelId, video.VideoId,
+                                   cancellationToken))
+                {
+                    if (drafted >= _opt.MaxDraftsPerRun)
+                    {
+                        break;
+                    }
 
-                drafted++;
+                    var existingReply = await replyRepository.GetReplyAsync(thread.ParentCommentId, cancellationToken);
+                    // Skip if we've already pulled this
+                    if (existingReply is not null)
+                    {
+                        continue;
+                    }
+
+                    string replyText;
+                    if (IsEmojiOnly(thread.Text))
+                    {
+                        replyText = "🔥🙌";
+                    }
+                    else
+                    {
+                        var suggestion = await ai.SuggestReplyAsync(
+                            video.Title ?? string.Empty,
+                            video.Tags,
+                            thread.Text,
+                            cancellationToken);
+
+                        replyText = string.IsNullOrWhiteSpace(suggestion)
+                            ? "Thanks for the comment! 🙌"
+                            : suggestion;
+                    }
+
+                    var reply = Reply.Create(thread.ParentCommentId, thread.VideoId, video.Title, thread.Text,
+                        DateTimeOffset.Now);
+                    reply.SuggestText(replyText, DateTimeOffset.Now);
+
+                    await replyRepository.AddOrUpdateReplyAsync(reply, cancellationToken);
+
+                    drafted++;
+                }
             }
         }
+
+
         return drafted;
     }
 
