@@ -3,6 +3,7 @@ using YouTubester.Application;
 using YouTubester.Application.Jobs;
 using YouTubester.Integration;
 using YouTubester.Persistence;
+using YouTubester.Persistence.Replies;
 using YouTubester.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -16,7 +17,7 @@ builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddScoped<IVideoTemplatingService, VideoTemplatingService>();
-builder.Services.AddHostedService<CommentScanWorker>();
+// builder.Services.AddHostedService<CommentScanWorker>();
 builder.Services.AddScoped<PostApprovedRepliesJob>();
 builder.Services.AddScoped<CopyVideoTemplateJob>();
 builder.Services.AddHangFireStorage(builder.Configuration, rootPath);

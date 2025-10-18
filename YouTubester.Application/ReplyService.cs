@@ -5,6 +5,7 @@ using YouTubester.Application.Jobs;
 using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence;
+using YouTubester.Persistence.Replies;
 
 namespace YouTubester.Application;
 

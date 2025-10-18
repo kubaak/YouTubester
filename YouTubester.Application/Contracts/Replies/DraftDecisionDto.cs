@@ -1,4 +1,4 @@
-namespace YouTubester.Application.Contracts;
+namespace YouTubester.Application.Contracts.Replies;
 
 public sealed record DraftDecisionDto(
     string CommentId,

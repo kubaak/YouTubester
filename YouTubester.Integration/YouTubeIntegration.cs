@@ -1,4 +1,5 @@
-﻿using Google.Apis.YouTube.v3;
+﻿using System.ComponentModel;
+using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
 using YouTubester.Integration.Dtos;
 
@@ -13,59 +14,143 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
         var chRes = await chReq.ExecuteAsync(cancellationToken);
         return chRes.Items.First().Id!;
     }
-
-    public async IAsyncEnumerable<string> GetAllPublicVideoIdsAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    
+    public async Task<string> GetUploadsPlaylistIdAsync(CancellationToken ct = default)
     {
-        // Find uploads playlist
+        var chReq = youTubeService.Channels.List("contentDetails");
+        chReq.Mine = true;
+        var chRes = await chReq.ExecuteAsync(ct);
+        var uploads = chRes.Items?.FirstOrDefault()?.ContentDetails?.RelatedPlaylists?.Uploads;
+        if (string.IsNullOrWhiteSpace(uploads))
+            throw new InvalidOperationException("Could not resolve uploads playlist for the authenticated channel.");
+        return uploads!;
+    }
+
+    public async IAsyncEnumerable<VideoDto> GetAllVideosAsync(
+        DateTimeOffset? publishedAfter,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        // Resolve uploads playlist (mine=true)
         var chReq = youTubeService.Channels.List("contentDetails");
         chReq.Mine = true;
         var chRes = await chReq.ExecuteAsync(cancellationToken);
-        var uploads = chRes.Items.First().ContentDetails.RelatedPlaylists.Uploads;
+        var uploads = chRes.Items?.FirstOrDefault()?.ContentDetails?.RelatedPlaylists?.Uploads
+                      ?? throw new InvalidOperationException("No uploads playlist for the authenticated channel.");
 
         string? page = null;
+        var cutoffUtc = publishedAfter?.UtcDateTime;
+
         do
         {
-            var plReq = youTubeService.PlaylistItems.List("contentDetails");
+            // Page newest → oldest with titles & descriptions
+            var plReq = youTubeService.PlaylistItems.List("contentDetails,snippet");
             plReq.PlaylistId = uploads;
             plReq.MaxResults = 50;
             plReq.PageToken = page;
 
             var plRes = await plReq.ExecuteAsync(cancellationToken);
-            var ids = string.Join(",", plRes.Items.Select(i => i.ContentDetails.VideoId));
+            var items = plRes.Items ?? new List<PlaylistItem>();
+            if (items.Count == 0) yield break;
 
-            var vReq = youTubeService.Videos.List("status");
-            vReq.Id = ids;
+            // Early stop if whole page is older than cutoff
+            if (cutoffUtc.HasValue)
+            {
+                var newest = items[0].ContentDetails?.VideoPublishedAt ?? items[0].Snippet?.PublishedAt;
+                if (newest.HasValue && newest.Value <= cutoffUtc.Value) yield break;
+            }
+
+            // Collect ids + playlist metadata (title/desc/publishedAt)
+            var pageIds = new List<string>(items.Count);
+            var plMeta = new Dictionary<string, (string? Title, string? Description, DateTimeOffset? PublishedAt)>(StringComparer.Ordinal);
+
+            foreach (var pi in items)
+            {
+                var id = pi.ContentDetails?.VideoId;
+                if (string.IsNullOrWhiteSpace(id)) continue;
+
+                var title = pi.Snippet?.Title;
+                var description = pi.Snippet?.Description;
+                var publishedAt = (DateTimeOffset?)pi.ContentDetails?.VideoPublishedAt ?? pi.Snippet?.PublishedAt;
+
+                pageIds.Add(id);
+                plMeta[id] = (title, description, publishedAt);
+            }
+
+            if (pageIds.Count == 0)
+            {
+                page = plRes.NextPageToken;
+                continue;
+            }
+
+            // Fetch details needed for the domain factory
+            // +snippet (channelId, title, tags, categoryId, defaultLanguage, defaultAudioLanguage)
+            // +contentDetails (duration)
+            // +status (privacy)
+            // +recordingDetails (location & description)
+            var vReq = youTubeService.Videos.List("snippet,contentDetails,status,recordingDetails");
+            vReq.Id = string.Join(",", pageIds);
             var vRes = await vReq.ExecuteAsync(cancellationToken);
+            var videos = vRes.Items ?? Enumerable.Empty<Google.Apis.YouTube.v3.Data.Video>();
 
-            foreach (var v in vRes.Items.Where(v => v.Status?.PrivacyStatus == "public"))
-                yield return v.Id;
-            
+            // Yield in playlist order (newest → older), honoring per-item cutoff
+            foreach (var pi in items)
+            {
+                var id = pi.ContentDetails?.VideoId;
+                if (string.IsNullOrWhiteSpace(id)) continue;
+
+                var publishedAt = plMeta[id].PublishedAt;
+                if (cutoffUtc.HasValue && publishedAt.HasValue && publishedAt.Value <= cutoffUtc.Value)
+                    yield break;
+
+                var v = videos.FirstOrDefault(x => x.Id == id);
+                if (v is null) continue;
+
+                var snippet = v.Snippet;
+                var content = v.ContentDetails;
+                var status  = v.Status;
+                var rec     = v.RecordingDetails;
+
+                var channelId = snippet?.ChannelId ?? ""; // you can also cache mine channel id once
+                var title     = plMeta[id].Title ?? snippet?.Title ?? "(untitled)";
+                var desc      = plMeta[id].Description ?? snippet?.Description ?? "";
+
+                var tags = (snippet?.Tags ?? new List<string>())
+                            .Where(t => !string.IsNullOrWhiteSpace(t))
+                            .ToArray();
+
+                var iso = content?.Duration ?? "PT0S";
+                var duration = System.Xml.XmlConvert.ToTimeSpan(iso);
+                
+                var isShort  = duration <= TimeSpan.FromSeconds(60);
+
+                (double lat, double lng)? loc = null;
+                var locObj = rec?.Location;
+                if (locObj?.Latitude is double lat && locObj.Longitude is double lng)
+                    loc = (lat, lng);
+
+                yield return new VideoDto(
+                    ChannelId: channelId,
+                    VideoId: id,
+                    Title: title,
+                    Description: desc,
+                    Tags: tags,
+                    Duration: duration,
+                    PrivacyStatus: status?.PrivacyStatus ?? "Private",
+                    IsShort: isShort,
+                    PublishedAt: publishedAt ?? DateTimeOffset.MinValue,
+                    CategoryId: snippet?.CategoryId,
+                    DefaultLanguage: snippet?.DefaultLanguage,
+                    DefaultAudioLanguage: snippet?.DefaultAudioLanguage,
+                    Location: loc,
+                    LocationDescription: rec?.LocationDescription
+                );
+            }
+
             page = plRes.NextPageToken;
-        } while (page != null);
+        }
+        while (!string.IsNullOrEmpty(page));
     }
-
-    public async Task<VideoDto?> GetVideoAsync(string videoId, CancellationToken cancellationToken)
-    {
-        var vReq = youTubeService.Videos.List("snippet,contentDetails,status");
-        vReq.Id = videoId;
-        var vRes = await vReq.ExecuteAsync(cancellationToken);
-        var v = vRes.Items.FirstOrDefault();
-        if (v is null) return null;
-
-        var duration = System.Xml.XmlConvert.ToTimeSpan(v.ContentDetails?.Duration ?? "PT0S");
-        var tags = v.Snippet?.Tags?.ToArray() ?? [];
-        var isShort = duration.TotalSeconds <= 60;
-
-        return new VideoDto(
-            v.Id,
-            v.Snippet?.Title ?? "",
-            tags,
-            duration,
-            v.Status?.PrivacyStatus == "public",
-            isShort
-        );
-    }
-
+    
     public async IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
         string videoId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)

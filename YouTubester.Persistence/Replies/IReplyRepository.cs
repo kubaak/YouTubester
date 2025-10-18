@@ -1,6 +1,6 @@
 ﻿using YouTubester.Domain;
 
-namespace YouTubester.Persistence;
+namespace YouTubester.Persistence.Replies;
 
 public interface IReplyRepository
 {

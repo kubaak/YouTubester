@@ -17,7 +17,7 @@ public class Reply
     public DateTimeOffset? ApprovedAt { get; private set; }
     public DateTimeOffset? PostedAt { get; private set; }
     
-    private const int MaxLength = 320; //todo verify
+    private const int MaxLength = 10_000; //limit for the youTube comment
 
     public void SuggestText(string text, DateTimeOffset? suggestedAt)
     {

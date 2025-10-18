@@ -5,8 +5,9 @@ namespace YouTubester.Integration;
 public interface IYouTubeIntegration
 {
     Task<string> GetMyChannelIdAsync(CancellationToken cancellationToken);
-    IAsyncEnumerable<string> GetAllPublicVideoIdsAsync(CancellationToken cancellationToken);
-    Task<VideoDto?> GetVideoAsync(string videoId, CancellationToken cancellationToken);
+
+    IAsyncEnumerable<VideoDto> GetAllVideosAsync(DateTimeOffset? publishedAfter, CancellationToken cancellationToken);
+    
     IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
         string videoId, CancellationToken cancellationToken);
     Task ReplyAsync(string parentCommentId, string text, CancellationToken cancellationToken);

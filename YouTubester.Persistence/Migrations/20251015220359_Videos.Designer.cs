@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using YouTubester.Persistence;
 
@@ -10,9 +11,11 @@ using YouTubester.Persistence;
 namespace YouTubester.Persistence.Migrations
 {
     [DbContext(typeof(YouTubesterDb))]
-    partial class YouTubesterDbModelSnapshot : ModelSnapshot
+    [Migration("20251015220359_Videos")]
+    partial class Videos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
@@ -67,36 +70,7 @@ namespace YouTubester.Persistence.Migrations
                     b.Property<string>("VideoId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CachedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CategoryId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("ChannelId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DefaultAudioLanguage")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DefaultLanguage")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<TimeSpan>("Duration")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LocationDescription")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("PublishedAt")
-                        .HasColumnType("TEXT");
-
-                    b.PrimitiveCollection<string>("Tags")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -107,38 +81,11 @@ namespace YouTubester.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("Visibility")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("VideoId");
 
                     b.HasIndex("UpdatedAt");
 
                     b.ToTable("Videos");
-                });
-
-            modelBuilder.Entity("YouTubester.Domain.Video", b =>
-                {
-                    b.OwnsOne("YouTubester.Domain.GeoLocation", "Location", b1 =>
-                        {
-                            b1.Property<string>("VideoId")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<double>("Latitude")
-                                .HasColumnType("REAL");
-
-                            b1.Property<double>("Longitude")
-                                .HasColumnType("REAL");
-
-                            b1.HasKey("VideoId");
-
-                            b1.ToTable("Videos");
-
-                            b1.WithOwner()
-                                .HasForeignKey("VideoId");
-                        });
-
-                    b.Navigation("Location");
                 });
 #pragma warning restore 612, 618
         }

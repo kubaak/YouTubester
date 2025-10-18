@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence;
+using YouTubester.Persistence.Replies;
 
 namespace YouTubester.Worker;
 
@@ -48,14 +49,15 @@ public partial  class CommentScanWorker(
         var repo = scope.ServiceProvider.GetRequiredService<IReplyRepository>();
 
         var drafted = 0;
-        await foreach (var videoId in yt.GetAllPublicVideoIdsAsync(cancellationToken))
+        //todo load from the cache instead
+        await foreach (var video in yt.GetAllVideosAsync(null, cancellationToken))
         {
             if (drafted >= _opt.MaxDraftsPerRun) break;
 
-            var video = await yt.GetVideoAsync(videoId, cancellationToken);
-            if (video is null || !video.IsPublic) continue;
 
-            await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(videoId, cancellationToken))
+            if (!video.IsPublic) continue;
+
+            await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(video.VideoId, cancellationToken))
             {
                 if (drafted >= _opt.MaxDraftsPerRun) break;
 

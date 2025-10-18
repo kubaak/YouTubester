@@ -3,19 +3,21 @@ using Microsoft.EntityFrameworkCore;
 using YouTubester.Application;
 using YouTubester.Integration;
 using YouTubester.Persistence;
+using YouTubester.Persistence.Replies;
+using YouTubester.Persistence.Videos;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-// Add your DI here
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
+builder.Services.AddScoped<IVideoRepository, VideoRepository>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<IReplyService, ReplyService>();
+builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
 
 var rootPath = builder.Environment.ContentRootPath;

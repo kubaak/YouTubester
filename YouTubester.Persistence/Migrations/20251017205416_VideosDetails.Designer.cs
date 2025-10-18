@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using YouTubester.Persistence;
 
@@ -10,9 +11,11 @@ using YouTubester.Persistence;
 namespace YouTubester.Persistence.Migrations
 {
     [DbContext(typeof(YouTubesterDb))]
-    partial class YouTubesterDbModelSnapshot : ModelSnapshot
+    [Migration("20251017205416_VideosDetails")]
+    partial class VideosDetails
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
@@ -90,6 +93,9 @@ namespace YouTubester.Persistence.Migrations
                     b.Property<TimeSpan>("Duration")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("LocationDescription")
                         .HasColumnType("TEXT");
 
@@ -106,9 +112,6 @@ namespace YouTubester.Persistence.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("Visibility")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("VideoId");
 

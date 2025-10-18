@@ -1,7 +1,7 @@
-﻿using YouTubester.Domain;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using YouTubester.Domain;
 
-namespace YouTubester.Persistence;
+namespace YouTubester.Persistence.Replies;
 
 public class ReplyRepository(YouTubesterDb db) : IReplyRepository
 {
