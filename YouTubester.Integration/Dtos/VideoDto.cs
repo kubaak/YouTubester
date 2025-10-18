@@ -13,6 +13,5 @@ public sealed record VideoDto(
     string? DefaultLanguage,
     string? DefaultAudioLanguage,
     (double lat, double lng)? Location,
-    string? LocationDescription,
-    string? ThumbnailUrl
+    string? LocationDescription
 );

@@ -27,11 +27,10 @@ public sealed class Video
     public string? LocationDescription { get; private set; }
     public DateTimeOffset CachedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
-    public string? ThumbnailUrl { get; private set; }
-
     public bool IsShort => Duration <= TimeSpan.FromSeconds(60);
 
     public string Url => $"https://www.youtube.com/watch?v={VideoId}";
+    public string ThumbnailUrl => $"https://i.ytimg.com/vi/{VideoId}/sddefault.jpg";
 
     public static Video Create(
         string uploadsPlaylistId,
@@ -47,8 +46,7 @@ public sealed class Video
         string? defaultAudioLanguage,
         GeoLocation? location,
         string? locationDescription,
-        DateTimeOffset nowUtc,
-        string? thumbnailUrl)
+        DateTimeOffset nowUtc)
     {
         return new Video
         {
@@ -65,7 +63,6 @@ public sealed class Video
             DefaultAudioLanguage = defaultAudioLanguage,
             Location = location,
             LocationDescription = locationDescription,
-            ThumbnailUrl = thumbnailUrl,
             CachedAt = nowUtc,
             UpdatedAt = nowUtc
         };
@@ -156,12 +153,6 @@ public sealed class Video
         if (!StringComparer.Ordinal.Equals(LocationDescription, locationDescription))
         {
             LocationDescription = locationDescription;
-            dirty = true;
-        }
-
-        if (thumbnailUrl is not null && !StringComparer.Ordinal.Equals(ThumbnailUrl, thumbnailUrl))
-        {
-            ThumbnailUrl = thumbnailUrl;
             dirty = true;
         }
 

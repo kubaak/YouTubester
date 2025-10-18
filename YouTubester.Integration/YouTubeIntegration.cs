@@ -88,8 +88,6 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
                 var title = metaTitle ?? video.Snippet.Title ?? string.Empty;
                 var description = metaDescription ?? video.Snippet.Title ?? string.Empty;
 
-                var thumbnailUrl = video.Snippet.Thumbnails.Standard?.Url;
-
                 var tags = video.Snippet?.Tags?
                     .Where(t => !string.IsNullOrWhiteSpace(t));
 
@@ -117,7 +115,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
                     video.Id, title, description, tags, duration, privacyStatus,
                     duration <= TimeSpan.FromSeconds(60), metaPublishedAt ?? DateTimeOffset.MinValue,
                     video.Snippet?.CategoryId, video.Snippet?.DefaultLanguage, video.Snippet?.DefaultAudioLanguage,
-                    location, video.RecordingDetails?.LocationDescription, thumbnailUrl
+                    location, video.RecordingDetails?.LocationDescription
                 );
             }
 
