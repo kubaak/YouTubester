@@ -7,7 +7,7 @@ public sealed class YouTubesterDbFactory : IDesignTimeDbContextFactory<YouTubest
 {
     public YouTubesterDb CreateDbContext(string[] args)
     {
-        var persistenceDir = Directory.GetCurrentDirectory(); ;
+        var persistenceDir = Directory.GetCurrentDirectory();
         var dbPath = ServiceCollectionExtensions.GetDbPath(persistenceDir);
         var options = new DbContextOptionsBuilder<YouTubesterDb>()
             .UseSqlite($"Data Source={dbPath}")

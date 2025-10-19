@@ -6,7 +6,7 @@ public sealed class Channel
     public string ChannelId { get; set; } = default!;
     public string UploadsPlaylistId { get; set; } = default!;
     public DateTimeOffset UpdatedAt { get; set; }
-    
+
     public static Channel Create(string channelId, string name, string uploadsPlaylistId, DateTimeOffset updatedAt)
     {
         return new Channel(channelId, name, uploadsPlaylistId, updatedAt);

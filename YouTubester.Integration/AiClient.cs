@@ -24,7 +24,8 @@ public sealed class AiClient(HttpClient httpClient, IOptions<AiOptions> aiOption
                        Return: {"title":"...","description":"...", "tags":["...","..."]}
                        """;
 
-        var body = new {
+        var body = new
+        {
             model = _ai.Model,
             prompt,
             stream = false,
@@ -38,9 +39,9 @@ public sealed class AiClient(HttpClient httpClient, IOptions<AiOptions> aiOption
         var content = env.RootElement.GetProperty("response").GetString() ?? "{}";
         using var doc = JsonDocument.Parse(content);
         var title = doc.RootElement.TryGetProperty("title", out var t) ? t.GetString() : null;
-        var desc  = doc.RootElement.TryGetProperty("description", out var d) ? d.GetString() : null;
+        var desc = doc.RootElement.TryGetProperty("description", out var d) ? d.GetString() : null;
         var tags = new List<string>();
-        if(doc.RootElement.TryGetProperty("tags", out var tagsElement))
+        if (doc.RootElement.TryGetProperty("tags", out var tagsElement))
         {
             foreach (var tagElement in tagsElement.EnumerateArray())
             {

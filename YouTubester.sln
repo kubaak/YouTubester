@@ -1,7 +1,5 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YouTubester", "YouTubester\YouTubester.csproj", "{838A81BB-21DC-499F-BEBF-C4E920CDCA29}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YouTubester.Persistence", "YouTubester.Persistence\YouTubester.Persistence.csproj", "{337FB270-3755-40C6-9680-961BCF541CC0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YouTubester.Domain", "YouTubester.Domain\YouTubester.Domain.csproj", "{E0E1CA49-2A41-4278-955C-046F2F2AB4C2}"
@@ -22,10 +20,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{838A81BB-21DC-499F-BEBF-C4E920CDCA29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{838A81BB-21DC-499F-BEBF-C4E920CDCA29}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{838A81BB-21DC-499F-BEBF-C4E920CDCA29}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{838A81BB-21DC-499F-BEBF-C4E920CDCA29}.Release|Any CPU.Build.0 = Release|Any CPU
 		{337FB270-3755-40C6-9680-961BCF541CC0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{337FB270-3755-40C6-9680-961BCF541CC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{337FB270-3755-40C6-9680-961BCF541CC0}.Release|Any CPU.ActiveCfg = Release|Any CPU

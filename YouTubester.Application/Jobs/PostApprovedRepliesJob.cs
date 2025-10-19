@@ -6,7 +6,7 @@ using YouTubester.Persistence.Replies;
 namespace YouTubester.Application.Jobs;
 
 public sealed class PostApprovedRepliesJob(
-    IReplyRepository repository, 
+    IReplyRepository repository,
     IYouTubeIntegration youTubeIntegration
     )
 {
@@ -15,11 +15,7 @@ public sealed class PostApprovedRepliesJob(
     public async Task Run(string commentId, IJobCancellationToken jobCancellationToken)
     {
         jobCancellationToken.ThrowIfCancellationRequested();
-        var draft = await repository.GetReplyAsync(commentId, jobCancellationToken.ShutdownToken);
-        if (draft == null)
-        {
-            throw new ArgumentException($"The draft {commentId} could not be found.");
-        }
+        var draft = await repository.GetReplyAsync(commentId, jobCancellationToken.ShutdownToken) ?? throw new ArgumentException($"The draft {commentId} could not be found.");
 
         //todo transaction
         await youTubeIntegration.ReplyAsync(commentId, draft.FinalText!, jobCancellationToken.ShutdownToken);

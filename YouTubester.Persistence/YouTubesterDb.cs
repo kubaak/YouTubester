@@ -21,7 +21,7 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
             v => v.UtcDateTime,
             v => new DateTimeOffset(v, TimeSpan.Zero));
         b.Entity<Reply>().Property(x => x.PostedAt).HasConversion(
-            v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime, 
+            v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
 
         b.Entity<Channel>().HasKey(x => x.ChannelId);

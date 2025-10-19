@@ -11,7 +11,7 @@ namespace YouTubester.Api;
 [Route("api/videos")]
 [Tags("Videos")]
 public sealed class VideosController(
-    IBackgroundJobClient  jobClient,
+    IBackgroundJobClient jobClient,
     IVideoService service,
     IChannelRepository channelRepository
     ) : ControllerBase
@@ -26,7 +26,7 @@ public sealed class VideosController(
 
     [HttpPost("sync/{channelName}")]
     [ProducesResponseType(typeof(SyncVideosResult), StatusCodes.Status200OK)]
-    public async Task<ActionResult<SyncVideosResult>> Sync([FromRoute]string channelName, CancellationToken ct)
+    public async Task<ActionResult<SyncVideosResult>> Sync([FromRoute] string channelName, CancellationToken ct)
     {
         var channel = await channelRepository.GetChannelByNameAsync(channelName, ct);
         if (channel is null)

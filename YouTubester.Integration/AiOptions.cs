@@ -9,5 +9,5 @@ public sealed class AiOptions
     public bool ReplaceTitle { get; set; } = false;
     public bool ApplyDescription { get; set; } = true;
     public bool ReplyToComments { get; set; } = true;
-    public int  MaxRepliesPerRun { get; set; } = 100;
+    public int MaxRepliesPerRun { get; set; } = 100;
 }

@@ -13,7 +13,7 @@ public class ReplyRepository(YouTubesterDb db) : IReplyRepository
 
     public async Task<Reply?> GetReplyAsync(string commentId, CancellationToken cancellationToken)
         => await db.Replies.AsNoTracking().FirstOrDefaultAsync(d => d.CommentId == commentId, cancellationToken);
-    
+
     public async Task AddOrUpdateReplyAsync(Reply reply, CancellationToken ct)
     {
         var tracked = await db.Replies.FirstOrDefaultAsync(r => r.CommentId == reply.CommentId, ct);
@@ -39,7 +39,7 @@ public class ReplyRepository(YouTubesterDb db) : IReplyRepository
         {
             db.Replies.Remove(entity);
             await db.SaveChangesAsync(cancellationToken);
-        } 
+        }
         return entity;
     }
 
@@ -52,7 +52,10 @@ public class ReplyRepository(YouTubesterDb db) : IReplyRepository
     public async Task<string[]> IgnoreManyAsync(IEnumerable<string> ids, CancellationToken ct)
     {
         var list = ids.ToArray();
-        if (list.Length == 0) return [];
+        if (list.Length == 0)
+        {
+            return [];
+        }
 
         _ = await db.Replies
             .Where(r => list.Contains(r.CommentId))
