@@ -29,15 +29,21 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
         b.Entity<Video>().HasKey(v => new { v.UploadsPlaylistId, v.VideoId });
         b.Entity<Video>().HasIndex(x => x.UpdatedAt);
         //.HasConversion because Sqlite doesn't support DateTimeOffset
+        b.Entity<Video>().Property(x => x.CachedAt).HasConversion(
+            v => v.UtcDateTime,
+            v => new DateTimeOffset(v, TimeSpan.Zero));
         b.Entity<Video>().Property(x => x.UpdatedAt).HasConversion(
+            v => v.UtcDateTime,
+            v => new DateTimeOffset(v, TimeSpan.Zero));
+        b.Entity<Video>().Property(x => x.PublishedAt).HasConversion(
             v => v.UtcDateTime,
             v => new DateTimeOffset(v, TimeSpan.Zero));
         b.Entity<Video>()
             .OwnsOne(v => v.Location, x =>
-        {
-            x.Property(p => p.Latitude);
-            x.Property(p => p.Longitude);
-            x.WithOwner();
-        });
+            {
+                x.Property(p => p.Latitude);
+                x.Property(p => p.Longitude);
+                x.WithOwner();
+            });
     }
 }
