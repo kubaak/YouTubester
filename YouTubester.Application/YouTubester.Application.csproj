@@ -7,12 +7,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\YouTubester.Integration\YouTubester.Integration.csproj" />
-      <ProjectReference Include="..\YouTubester.Persistence\YouTubester.Persistence.csproj" />
+        <ProjectReference Include="..\YouTubester.Integration\YouTubester.Integration.csproj"/>
+        <ProjectReference Include="..\YouTubester.Persistence\YouTubester.Persistence.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Hangfire.Core" Version="1.8.21" />
+        <PackageReference Include="Hangfire.Core" Version="1.8.21"/>
+        <PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.10"/>
     </ItemGroup>
 
 </Project>

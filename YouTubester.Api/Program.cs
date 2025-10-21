@@ -11,7 +11,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
+});
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
@@ -21,6 +29,8 @@ builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<IReplyService, ReplyService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
+
+builder.Services.AddVideoListingOptions(builder.Configuration);
 
 var rootPath = builder.Environment.ContentRootPath;
 builder.Services.AddDatabase(rootPath);

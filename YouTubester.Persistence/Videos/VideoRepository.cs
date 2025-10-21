@@ -1,3 +1,5 @@
+using System.Text;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using YouTubester.Domain;
 
@@ -55,5 +57,63 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
 
         await db.SaveChangesAsync(cancellationToken);
         return inserts + updates;
+    }
+
+    public async Task<List<Video>> GetVideosPageAsync(
+        string? title,
+        IReadOnlyCollection<VideoVisibility>? visibilities,
+        DateTimeOffset? afterPublishedAtUtc,
+        string? afterVideoId,
+        int take,
+        CancellationToken ct)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("SELECT *");
+        sb.AppendLine("FROM Videos v");
+        sb.AppendLine("WHERE 1=1");
+
+        var parameters = new List<object>();
+
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            sb.AppendLine("  AND v.Title IS NOT NULL AND v.Title COLLATE NOCASE LIKE '%' || @title || '%'");
+            parameters.Add(new SqliteParameter("@title", title));
+        }
+
+        if (visibilities is { Count: > 0 })
+        {
+            var inParams = new List<string>();
+            var i = 0;
+            foreach (var v in visibilities!)
+            {
+                var name = $"@vis{i++}";
+                inParams.Add(name);
+                parameters.Add(new SqliteParameter(name, (int)v));
+            }
+
+            sb.AppendLine($"  AND v.Visibility IN ({string.Join(", ", inParams)})");
+        }
+
+        if (afterPublishedAtUtc.HasValue && !string.IsNullOrEmpty(afterVideoId))
+        {
+            sb.AppendLine("  AND (v.PublishedAt < @afterPub");
+            sb.AppendLine("       OR (v.PublishedAt = @afterPub AND v.VideoId COLLATE BINARY < @afterId))");
+
+            // With Microsoft.Data.Sqlite it’s safest to pass the DateTime value EF maps to
+            parameters.Add(new SqliteParameter("@afterPub", afterPublishedAtUtc.Value.UtcDateTime));
+            parameters.Add(new SqliteParameter("@afterId", afterVideoId!));
+        }
+
+        sb.AppendLine("ORDER BY v.PublishedAt DESC, v.VideoId DESC");
+        sb.AppendLine("LIMIT @take");
+
+        parameters.Add(new SqliteParameter("@take", take));
+
+        var sql = sb.ToString();
+
+        return await db.Videos
+            .FromSqlRaw(sql, parameters.ToArray())
+            .AsNoTracking()
+            .ToListAsync(ct);
     }
 }

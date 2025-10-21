@@ -1,5 +1,4 @@
-﻿using System.Threading.Channels;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using YouTubester.Domain;
 using Channel = YouTubester.Domain.Channel;
 
@@ -28,6 +27,8 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
 
         b.Entity<Video>().HasKey(v => new { v.UploadsPlaylistId, v.VideoId });
         b.Entity<Video>().HasIndex(x => x.UpdatedAt);
+        // Composite index for video listing performance (PublishedAt DESC, VideoId DESC)
+        b.Entity<Video>().HasIndex(v => new { v.PublishedAt, v.VideoId });
         //.HasConversion because Sqlite doesn't support DateTimeOffset
         b.Entity<Video>().Property(x => x.CachedAt).HasConversion(
             v => v.UtcDateTime,

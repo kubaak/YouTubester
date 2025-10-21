@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using YouTubester.Domain;
 using YouTubester.Integration;
-using YouTubester.Persistence;
 using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Replies;
 using YouTubester.Persistence.Videos;
