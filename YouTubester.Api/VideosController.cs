@@ -17,7 +17,7 @@ public sealed class VideosController(
     IBackgroundJobClient jobClient,
     IVideoService service,
     IChannelRepository channelRepository
-    ) : ControllerBase
+) : ControllerBase
 {
     [HttpPost("copy-template")]
     public IActionResult CopyTemplate(
@@ -42,16 +42,17 @@ public sealed class VideosController(
     }
 
     /// <summary>
-    /// Gets a paginated list of videos with optional title filtering and visibility filtering.
+    /// Gets a paginated list of videos with optional title and visibility filters.
     /// </summary>
-    /// <param name="title">Optional case-insensitive substring filter for video titles.</param>
-    /// <param name="visibility">Optional visibility filter array. Multiple values can be passed as repeated keys (?visibility=Public&amp;visibility=Unlisted) or comma-separated (?visibility=Public,Unlisted). Values are case-insensitive. Valid options: Public, Unlisted, Private, Scheduled.</param>
-    /// <param name="pageSize">Number of items per page (1-100, defaults to 30).</param>
-    /// <param name="pageToken">Cursor token for pagination, or null for first page.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>Paginated result containing videos and optional next page token.</returns>
-    /// <response code="200">Returns the paginated list of videos.</response>
-    /// <response code="400">Invalid pageSize, pageToken, or visibility values provided.</response>
+    /// <param name="title">Case-insensitive substring filter for video titles.</param>
+    /// <param name="visibility">
+    /// Optional visibility filter. Multiple values allowed 
+    /// (<c>?visibility=Public&amp;visibility=Unlisted</c>). 
+    /// Accepts enum names or numeric values (Public=0, Unlisted=1, Private=2, Scheduled=3).
+    /// </param>
+    /// <param name="pageSize">Items per page (1–100, default 30).</param>
+    /// <param name="pageToken">Cursor token for pagination, or <c>null</c> for first page.</param>
+    /// <returns>Paginated list of videos and next-page token if available.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<VideoListItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
