@@ -1,7 +1,9 @@
 using Hangfire;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Application;
+using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Videos;
+using YouTubester.Application.Exceptions;
 using YouTubester.Application.Jobs;
 using YouTubester.Persistence.Channels;
 
@@ -36,5 +38,39 @@ public sealed class VideosController(
 
         var result = await service.SyncChannelVideosAsync(channel.UploadsPlaylistId, ct);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Gets a paginated list of videos with optional title filtering.
+    /// </summary>
+    /// <param name="title">Optional case-insensitive substring filter for video titles.</param>
+    /// <param name="pageSize">Number of items per page (1-100, defaults to 30).</param>
+    /// <param name="pageToken">Cursor token for pagination, or null for first page.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Paginated result containing videos and optional next page token.</returns>
+    /// <response code="200">Returns the paginated list of videos.</response>
+    /// <response code="400">Invalid pageSize or pageToken provided.</response>
+    [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<VideoListItemDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResult<VideoListItemDto>>> GetVideos(
+        [FromQuery] string? title,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? pageToken,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await service.GetVideosAsync(title, pageSize, pageToken, ct);
+            return Ok(result);
+        }
+        catch (InvalidPageSizeException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidPageTokenException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }

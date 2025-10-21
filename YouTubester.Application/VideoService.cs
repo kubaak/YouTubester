@@ -1,12 +1,18 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using YouTubester.Application.Common;
+using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Videos;
+using YouTubester.Application.Exceptions;
+using YouTubester.Application.Options;
 using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application;
 
-public class VideoService(IVideoRepository repo, IYouTubeIntegration yt) : IVideoService
+public class VideoService(IVideoRepository repo, IYouTubeIntegration yt, IOptions<VideoListingOptions> options, ILogger<VideoService> logger) : IVideoService
 {
     private const int BatchCapacity = 100;
 
@@ -77,6 +83,68 @@ public class VideoService(IVideoRepository repo, IYouTubeIntegration yt) : IVide
             "unlisted" => VideoVisibility.Unlisted,
             "private" => VideoVisibility.Private,
             _ => VideoVisibility.Private
+        };
+    }
+
+    public async Task<PagedResult<VideoListItemDto>> GetVideosAsync(string? title, int? pageSize, string? pageToken, CancellationToken ct)
+    {
+        // Normalize title filter
+        var normalizedTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+        if (string.IsNullOrEmpty(normalizedTitle))
+        {
+            normalizedTitle = null;
+        }
+
+        // Validate and set page size
+        var opts = options.Value;
+        var effectivePageSize = pageSize ?? opts.DefaultPageSize;
+        if (effectivePageSize < 1 || effectivePageSize > opts.MaxPageSize)
+        {
+            throw new InvalidPageSizeException(effectivePageSize, opts.MaxPageSize);
+        }
+
+        // Parse page token
+        DateTimeOffset? afterPublishedAtUtc = null;
+        string? afterVideoId = null;
+        if (!string.IsNullOrWhiteSpace(pageToken))
+        {
+            if (!VideosPageToken.TryParse(pageToken, out var publishedAt, out var videoId))
+            {
+                logger.LogWarning("Invalid page token received");
+                throw new InvalidPageTokenException();
+            }
+            afterPublishedAtUtc = publishedAt;
+            afterVideoId = videoId;
+        }
+
+        // Fetch one extra item to determine if there's a next page
+        var take = effectivePageSize + 1;
+        var videos = await repo.GetVideosPageAsync(normalizedTitle, afterPublishedAtUtc, afterVideoId, take, ct);
+        
+        // Determine if there are more items
+        var hasMore = videos.Count > effectivePageSize;
+        var itemsToReturn = hasMore ? videos.Take(effectivePageSize).ToList() : videos;
+
+        // Generate next page token if there are more items
+        string? nextPageToken = null;
+        if (hasMore && itemsToReturn.Count > 0)
+        {
+            var lastItem = itemsToReturn[^1];
+            nextPageToken = VideosPageToken.Serialize(lastItem.PublishedAt, lastItem.VideoId);
+        }
+
+        // Map to DTOs
+        var items = itemsToReturn.Select(v => new VideoListItemDto
+        {
+            VideoId = v.VideoId,
+            Title = v.Title,
+            PublishedAt = v.PublishedAt
+        }).ToList();
+
+        return new PagedResult<VideoListItemDto>
+        {
+            Items = items,
+            NextPageToken = nextPageToken
         };
     }
 }

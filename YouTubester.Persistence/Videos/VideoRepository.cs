@@ -56,4 +56,33 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         await db.SaveChangesAsync(cancellationToken);
         return inserts + updates;
     }
+
+    public async Task<List<Video>> GetVideosPageAsync(string? title, DateTimeOffset? afterPublishedAtUtc, string? afterVideoId, int take, CancellationToken ct)
+    {
+        var query = db.Videos.AsNoTracking();
+
+        // Apply title filter (case-insensitive substring match)
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            var trimmedTitle = title.Trim();
+            var pattern = $"%{trimmedTitle}%";
+            query = query.Where(v => EF.Functions.Like(
+                EF.Functions.Collate(v.Title ?? "", "NOCASE"), pattern));
+        }
+
+        // Apply cursor filter for "strictly earlier" items in descending order
+        if (afterPublishedAtUtc.HasValue && !string.IsNullOrEmpty(afterVideoId))
+        {
+            query = query.Where(v => 
+                v.PublishedAt < afterPublishedAtUtc.Value ||
+                (v.PublishedAt == afterPublishedAtUtc.Value && 
+                 string.Compare(v.VideoId, afterVideoId, StringComparison.Ordinal) < 0));
+        }
+
+        return await query
+            .OrderByDescending(v => v.PublishedAt)
+            .ThenByDescending(v => v.VideoId)
+            .Take(take)
+            .ToListAsync(ct);
+    }
 }
