@@ -36,3 +36,14 @@ public sealed class InvalidPageSizeException : Exception
     {
     }
 }
+
+/// <summary>
+/// Exception thrown when visibility contains invalid values.
+/// </summary>
+public sealed class InvalidVisibilityException : Exception
+{
+    public InvalidVisibilityException(string? value)
+        : base($"Invalid visibility value: '{value}'. Allowed: public, unlisted, private, scheduled.")
+    {
+    }
+}

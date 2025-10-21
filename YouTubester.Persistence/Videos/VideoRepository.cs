@@ -57,7 +57,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         return inserts + updates;
     }
 
-    public async Task<List<Video>> GetVideosPageAsync(string? title, DateTimeOffset? afterPublishedAtUtc, string? afterVideoId, int take, CancellationToken ct)
+    public async Task<List<Video>> GetVideosPageAsync(string? title, IReadOnlyCollection<VideoVisibility>? visibilities, DateTimeOffset? afterPublishedAtUtc, string? afterVideoId, int take, CancellationToken ct)
     {
         var query = db.Videos.AsNoTracking();
 
@@ -68,6 +68,12 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             var pattern = $"%{trimmedTitle}%";
             query = query.Where(v => EF.Functions.Like(
                 EF.Functions.Collate(v.Title ?? "", "NOCASE"), pattern));
+        }
+
+        // Apply visibility filter
+        if (visibilities is { Count: > 0 })
+        {
+            query = query.Where(v => visibilities.Contains(v.Visibility));
         }
 
         // Apply cursor filter for "strictly earlier" items in descending order

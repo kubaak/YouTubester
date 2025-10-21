@@ -44,6 +44,7 @@ public sealed class VideosController(
     /// Gets a paginated list of videos with optional title filtering.
     /// </summary>
     /// <param name="title">Optional case-insensitive substring filter for video titles.</param>
+    /// <param name="visibility">Optional comma-separated visibility filter: public, unlisted, private, scheduled.</param>
     /// <param name="pageSize">Number of items per page (1-100, defaults to 30).</param>
     /// <param name="pageToken">Cursor token for pagination, or null for first page.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -55,13 +56,14 @@ public sealed class VideosController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PagedResult<VideoListItemDto>>> GetVideos(
         [FromQuery] string? title,
+        [FromQuery] string? visibility,
         [FromQuery] int? pageSize,
         [FromQuery] string? pageToken,
         CancellationToken ct)
     {
         try
         {
-            var result = await service.GetVideosAsync(title, pageSize, pageToken, ct);
+            var result = await service.GetVideosAsync(title, visibility, pageSize, pageToken, ct);
             return Ok(result);
         }
         catch (InvalidPageSizeException ex)
@@ -69,6 +71,10 @@ public sealed class VideosController(
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidPageTokenException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidVisibilityException ex)
         {
             return BadRequest(new { error = ex.Message });
         }
