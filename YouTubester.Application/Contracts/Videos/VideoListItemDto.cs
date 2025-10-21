@@ -19,4 +19,9 @@ public sealed record VideoListItemDto
     /// Video published date in UTC.
     /// </summary>
     public DateTimeOffset PublishedAt { get; init; }
+
+    /// <summary>
+    /// Video thumbnail URL.
+    /// </summary>
+    public required string ThumbnailUrl { get; init; }
 }

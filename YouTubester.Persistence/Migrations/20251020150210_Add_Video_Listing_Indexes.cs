@@ -14,7 +14,7 @@ namespace YouTubester.Persistence.Migrations
                 name: "IX_Videos_PublishedAt_VideoId",
                 table: "Videos",
                 columns: new[] { "PublishedAt", "VideoId" });
-            
+
             // Case-insensitive title index for filtering performance
             migrationBuilder.Sql("CREATE INDEX IF NOT EXISTS IX_Videos_Title_NOCASE ON Videos(Title COLLATE NOCASE);");
         }
@@ -25,7 +25,7 @@ namespace YouTubester.Persistence.Migrations
             migrationBuilder.DropIndex(
                 name: "IX_Videos_PublishedAt_VideoId",
                 table: "Videos");
-            
+
             migrationBuilder.Sql("DROP INDEX IF EXISTS IX_Videos_Title_NOCASE;");
         }
     }

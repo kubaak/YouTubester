@@ -12,7 +12,11 @@ using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application;
 
-public class VideoService(IVideoRepository repo, IYouTubeIntegration yt, IOptions<VideoListingOptions> options, ILogger<VideoService> logger) : IVideoService
+public class VideoService(
+    IVideoRepository repo,
+    IYouTubeIntegration yt,
+    IOptions<VideoListingOptions> options,
+    ILogger<VideoService> logger) : IVideoService
 {
     private const int BatchCapacity = 100;
 
@@ -67,6 +71,69 @@ public class VideoService(IVideoRepository repo, IYouTubeIntegration yt, IOption
         return new SyncVideosResult(0, 0, total);
     }
 
+    public async Task<PagedResult<VideoListItemDto>> GetVideosAsync(string? title, VideoVisibility[]? visibility,
+        int? pageSize, string? pageToken, CancellationToken ct)
+    {
+        var normalizedTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+        if (string.IsNullOrEmpty(normalizedTitle))
+        {
+            normalizedTitle = null;
+        }
+
+        var opts = options.Value;
+        var effectivePageSize = pageSize ?? opts.DefaultPageSize;
+        if (effectivePageSize < 1 || effectivePageSize > opts.MaxPageSize)
+        {
+            throw new InvalidPageSizeException(effectivePageSize, opts.MaxPageSize);
+        }
+
+        var visibilityBinding = visibility is null ? string.Empty : string.Join(',', visibility.OrderBy(v => v));
+        var binding = $"{normalizedTitle ?? string.Empty}|{visibilityBinding}";
+
+        DateTimeOffset? afterPublishedAtUtc = null;
+        string? afterVideoId = null;
+        if (!string.IsNullOrWhiteSpace(pageToken))
+        {
+            if (!VideosPageToken.TryParse(pageToken, out var publishedAt, out var videoId, out var tokenBinding))
+            {
+                logger.LogWarning("Invalid page token received");
+                throw new InvalidPageTokenException();
+            }
+
+            if (!string.IsNullOrEmpty(tokenBinding) && !string.Equals(tokenBinding, binding, StringComparison.Ordinal))
+            {
+                logger.LogWarning("Page token binding mismatch");
+                throw new InvalidPageTokenException("Page token does not match current filters.");
+            }
+
+            afterPublishedAtUtc = publishedAt;
+            afterVideoId = videoId;
+        }
+
+        // Fetch one extra item to determine if there's a next page
+        var take = effectivePageSize + 1;
+        var videos =
+            await repo.GetVideosPageAsync(normalizedTitle, visibility, afterPublishedAtUtc, afterVideoId, take, ct);
+
+        // Determine if there are more items
+        var hasMore = videos.Count > effectivePageSize;
+        var itemsToReturn = hasMore ? videos.Take(effectivePageSize).ToList() : videos;
+
+        string? nextPageToken = null;
+        if (hasMore && itemsToReturn.Count > 0)
+        {
+            var lastItem = itemsToReturn[^1];
+            nextPageToken = VideosPageToken.Serialize(lastItem.PublishedAt, lastItem.VideoId, binding);
+        }
+
+        var items = itemsToReturn.Select(v => new VideoListItemDto
+        {
+            VideoId = v.VideoId, Title = v.Title, PublishedAt = v.PublishedAt, ThumbnailUrl = v.ThumbnailUrl
+        }).ToList();
+
+        return new PagedResult<VideoListItemDto> { Items = items, NextPageToken = nextPageToken };
+    }
+
     private static VideoVisibility MapVisibility(string? privacyStatus, DateTimeOffset? publishAtUtc,
         DateTimeOffset nowUtc)
     {
@@ -77,99 +144,12 @@ public class VideoService(IVideoRepository repo, IYouTubeIntegration yt, IOption
             return VideoVisibility.Scheduled;
         }
 
-        return privacyStatus?.ToLowerInvariant() switch
+        if (!string.IsNullOrWhiteSpace(privacyStatus) &&
+            Enum.TryParse<VideoVisibility>(privacyStatus, true, out var parsed))
         {
-            "public" => VideoVisibility.Public,
-            "unlisted" => VideoVisibility.Unlisted,
-            "private" => VideoVisibility.Private,
-            _ => VideoVisibility.Private
-        };
-    }
-
-    public async Task<PagedResult<VideoListItemDto>> GetVideosAsync(string? title, string? visibility, int? pageSize, string? pageToken, CancellationToken ct)
-    {
-        // Normalize title filter
-        var normalizedTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
-        if (string.IsNullOrEmpty(normalizedTitle))
-        {
-            normalizedTitle = null;
+            return parsed;
         }
 
-        // Parse visibility CSV
-        HashSet<VideoVisibility>? visibilities = null;
-        if (!string.IsNullOrWhiteSpace(visibility))
-        {
-            visibilities = new HashSet<VideoVisibility>();
-            foreach (var part in visibility.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                if (!Enum.TryParse<VideoVisibility>(part, true, out var v))
-                {
-                    throw new InvalidVisibilityException(part);
-                }
-                visibilities.Add(v);
-            }
-            if (visibilities.Count == 0) visibilities = null;
-        }
-
-        // Validate and set page size
-        var opts = options.Value;
-        var effectivePageSize = pageSize ?? opts.DefaultPageSize;
-        if (effectivePageSize < 1 || effectivePageSize > opts.MaxPageSize)
-        {
-            throw new InvalidPageSizeException(effectivePageSize, opts.MaxPageSize);
-        }
-
-        // Compute filter binding for token integrity
-        var visBinding = visibilities is null ? string.Empty : string.Join(',', visibilities.OrderBy(v => v));
-        var binding = $"{normalizedTitle ?? string.Empty}|{visBinding}";
-
-        // Parse page token (validate binding if present)
-        DateTimeOffset? afterPublishedAtUtc = null;
-        string? afterVideoId = null;
-        if (!string.IsNullOrWhiteSpace(pageToken))
-        {
-            if (!VideosPageToken.TryParse(pageToken, out var publishedAt, out var videoId, out var tokenBinding))
-            {
-                logger.LogWarning("Invalid page token received");
-                throw new InvalidPageTokenException();
-            }
-            if (!string.IsNullOrEmpty(tokenBinding) && !string.Equals(tokenBinding, binding, StringComparison.Ordinal))
-            {
-                logger.LogWarning("Page token binding mismatch");
-                throw new InvalidPageTokenException("Page token does not match current filters.");
-            }
-            afterPublishedAtUtc = publishedAt;
-            afterVideoId = videoId;
-        }
-
-        // Fetch one extra item to determine if there's a next page
-        var take = effectivePageSize + 1;
-        var videos = await repo.GetVideosPageAsync(normalizedTitle, visibilities, afterPublishedAtUtc, afterVideoId, take, ct);
-        
-        // Determine if there are more items
-        var hasMore = videos.Count > effectivePageSize;
-        var itemsToReturn = hasMore ? videos.Take(effectivePageSize).ToList() : videos;
-
-        // Generate next page token if there are more items
-        string? nextPageToken = null;
-        if (hasMore && itemsToReturn.Count > 0)
-        {
-            var lastItem = itemsToReturn[^1];
-            nextPageToken = VideosPageToken.Serialize(lastItem.PublishedAt, lastItem.VideoId, binding);
-        }
-
-        // Map to DTOs
-        var items = itemsToReturn.Select(v => new VideoListItemDto
-        {
-            VideoId = v.VideoId,
-            Title = v.Title,
-            PublishedAt = v.PublishedAt
-        }).ToList();
-
-        return new PagedResult<VideoListItemDto>
-        {
-            Items = items,
-            NextPageToken = nextPageToken
-        };
+        return VideoVisibility.Private;
     }
 }

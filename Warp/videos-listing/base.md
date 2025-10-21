@@ -21,11 +21,11 @@ and optional **visibility** filter.
 
 ### Parameter Visibility
 - Name: visibility
-- Type: optional string array. Accept: public, unlisted, private, scheduled. Mapped to VideoVisibility enum.
-- Multi-select: allow case-insensitive comma-separated values (e.g., visibility=public,unlisted).
+- Type: optional VideoVisibility[] array. Accept: Public, Unlisted, Private, Scheduled.
+- Multi-select: allow repeated keys (?visibility=Public&visibility=Unlisted) or comma-separated (?visibility=Public,Unlisted). Case-insensitive.
 - If omitted → no visibility filter (all videos).
 - Bind the pageToken to the current filter
-- If provided → filter to the set. Reject unknown values with 400.
+- If provided → filter to the set. Invalid enum values automatically return 400 via model binding.
 
 ## Implementation Decisions
 1. Title filter: case-insensitive substring match (contains). SQLite implementation via `EF.Functions.Like` with NOCASE collation.

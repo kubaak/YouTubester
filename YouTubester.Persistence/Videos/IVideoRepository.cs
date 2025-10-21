@@ -6,7 +6,7 @@ public interface IVideoRepository
 {
     Task<List<Video>> GetAllVideosAsync(CancellationToken cancellationToken);
     Task<int> UpsertAsync(IEnumerable<Video> videos, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Gets a page of videos with optional title filtering and cursor-based pagination.
     /// </summary>

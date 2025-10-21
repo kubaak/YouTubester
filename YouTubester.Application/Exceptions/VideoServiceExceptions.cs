@@ -23,7 +23,7 @@ public sealed class InvalidPageTokenException : Exception
 /// </summary>
 public sealed class InvalidPageSizeException : Exception
 {
-    public InvalidPageSizeException(int pageSize, int maxPageSize) 
+    public InvalidPageSizeException(int pageSize, int maxPageSize)
         : base($"Page size must be between 1 and {maxPageSize}. Provided: {pageSize}")
     {
     }
@@ -37,13 +37,3 @@ public sealed class InvalidPageSizeException : Exception
     }
 }
 
-/// <summary>
-/// Exception thrown when visibility contains invalid values.
-/// </summary>
-public sealed class InvalidVisibilityException : Exception
-{
-    public InvalidVisibilityException(string? value)
-        : base($"Invalid visibility value: '{value}'. Allowed: public, unlisted, private, scheduled.")
-    {
-    }
-}

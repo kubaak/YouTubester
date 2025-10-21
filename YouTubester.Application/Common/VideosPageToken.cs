@@ -1,56 +1,29 @@
 using System.Globalization;
 using System.Text;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace YouTubester.Application.Common;
 
-/// <summary>
-/// Utility for encoding and decoding cursor tokens for video pagination.
-/// </summary>
 public static class VideosPageToken
 {
-    /// <summary>
-    /// Encodes a cursor into a URL-safe Base64 token.
-    /// </summary>
-    /// <param name="publishedAtUtc">Published date in UTC.</param>
-    /// <param name="videoId">Video ID for tie-breaking.</param>
-    /// <returns>URL-safe Base64 encoded token.</returns>
-    public static string Serialize(DateTimeOffset publishedAtUtc, string videoId)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(videoId);
-        var payload = $"{publishedAtUtc:O}|{videoId}";
-        var bytes = Encoding.UTF8.GetBytes(payload);
-        return Convert.ToBase64String(bytes)
-            .Replace('+', '-')
-            .Replace('/', '_')
-            .TrimEnd('=');
-    }
-
-    /// <summary>
-    /// Encodes a cursor with an optional filter binding to enforce token reuse with same filters.
-    /// </summary>
     public static string Serialize(DateTimeOffset publishedAtUtc, string videoId, string? binding)
     {
         ArgumentException.ThrowIfNullOrEmpty(videoId);
+
+        // payload: ISO8601 | videoId | optional binding
         var core = $"{publishedAtUtc:O}|{videoId}";
         var payload = string.IsNullOrEmpty(binding) ? core : $"{core}|{binding}";
         var bytes = Encoding.UTF8.GetBytes(payload);
-        return Convert.ToBase64String(bytes)
-            .Replace('+', '-')
-            .Replace('/', '_')
-            .TrimEnd('=');
+
+        return WebEncoders.Base64UrlEncode(bytes);
     }
 
-    /// <summary>
-    /// Attempts to decode a cursor token.
-    /// </summary>
-    /// <param name="token">URL-safe Base64 encoded token.</param>
-    /// <param name="publishedAtUtc">Decoded published date in UTC.</param>
-    /// <param name="videoId">Decoded video ID.</param>
-    /// <returns>True if decoding was successful; otherwise false.</returns>
-    public static bool TryParse(string? token, out DateTimeOffset publishedAtUtc, out string videoId)
+    public static bool TryParse(string? token, out DateTimeOffset publishedAtUtc, out string videoId,
+        out string? binding)
     {
         publishedAtUtc = default;
         videoId = string.Empty;
+        binding = null;
 
         if (string.IsNullOrWhiteSpace(token))
         {
@@ -59,68 +32,40 @@ public static class VideosPageToken
 
         try
         {
-            // Restore Base64 padding and convert from URL-safe
-            var base64 = token.Replace('-', '+').Replace('_', '/');
-            var paddingLength = 4 - (base64.Length % 4);
-            if (paddingLength != 4)
-            {
-                base64 += new string('=', paddingLength);
-            }
-
-            var bytes = Convert.FromBase64String(base64);
+            // Decode Base64URL
+            var bytes = WebEncoders.Base64UrlDecode(token);
             var payload = Encoding.UTF8.GetString(bytes);
 
-            var parts = payload.Split('|');
-            if (parts.Length != 2)
+            // limit to 3 parts so binding may contain '|'
+            var parts = payload.Split('|', 3);
+            if (parts.Length < 2)
             {
                 return false;
             }
 
-            if (!DateTimeOffset.TryParseExact(parts[0], "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out publishedAtUtc))
+            if (!DateTimeOffset.TryParseExact(parts[0], "O",
+                    CultureInfo.InvariantCulture, DateTimeStyles.None,
+                    out publishedAtUtc))
             {
                 return false;
             }
 
             videoId = parts[1];
-            return !string.IsNullOrEmpty(videoId);
+            if (string.IsNullOrEmpty(videoId))
+            {
+                return false;
+            }
+
+            if (parts.Length == 3)
+            {
+                binding = parts[2];
+            }
+
+            return true;
         }
         catch
         {
             return false;
         }
-    }
-
-    /// <summary>
-    /// Attempts to decode a cursor token with optional filter binding (third part).
-    /// </summary>
-    public static bool TryParse(string? token, out DateTimeOffset publishedAtUtc, out string videoId, out string? binding)
-    {
-        binding = null;
-        return TryParseInternal(token, out publishedAtUtc, out videoId, out binding);
-    }
-
-    private static bool TryParseInternal(string? token, out DateTimeOffset publishedAtUtc, out string videoId, out string? binding)
-    {
-        publishedAtUtc = default;
-        videoId = string.Empty;
-        binding = null;
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        try
-        {
-            var base64 = token.Replace('-', '+').Replace('_', '/');
-            var paddingLength = 4 - (base64.Length % 4);
-            if (paddingLength != 4) base64 += new string('=', paddingLength);
-            var bytes = Convert.FromBase64String(base64);
-            var payload = Encoding.UTF8.GetString(bytes);
-            var parts = payload.Split('|');
-            if (parts.Length < 2 || parts.Length > 3) return false;
-            if (!DateTimeOffset.TryParseExact(parts[0], "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out publishedAtUtc))
-                return false;
-            videoId = parts[1];
-            if (string.IsNullOrEmpty(videoId)) return false;
-            if (parts.Length == 3) binding = parts[2];
-            return true;
-        }
-        catch { return false; }
     }
 }

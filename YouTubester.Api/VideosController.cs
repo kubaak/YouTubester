@@ -5,6 +5,7 @@ using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Videos;
 using YouTubester.Application.Exceptions;
 using YouTubester.Application.Jobs;
+using YouTubester.Domain;
 using YouTubester.Persistence.Channels;
 
 namespace YouTubester.Api;
@@ -41,22 +42,22 @@ public sealed class VideosController(
     }
 
     /// <summary>
-    /// Gets a paginated list of videos with optional title filtering.
+    /// Gets a paginated list of videos with optional title filtering and visibility filtering.
     /// </summary>
     /// <param name="title">Optional case-insensitive substring filter for video titles.</param>
-    /// <param name="visibility">Optional comma-separated visibility filter: public, unlisted, private, scheduled.</param>
+    /// <param name="visibility">Optional visibility filter array. Multiple values can be passed as repeated keys (?visibility=Public&amp;visibility=Unlisted) or comma-separated (?visibility=Public,Unlisted). Values are case-insensitive. Valid options: Public, Unlisted, Private, Scheduled.</param>
     /// <param name="pageSize">Number of items per page (1-100, defaults to 30).</param>
     /// <param name="pageToken">Cursor token for pagination, or null for first page.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Paginated result containing videos and optional next page token.</returns>
     /// <response code="200">Returns the paginated list of videos.</response>
-    /// <response code="400">Invalid pageSize or pageToken provided.</response>
+    /// <response code="400">Invalid pageSize, pageToken, or visibility values provided.</response>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<VideoListItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PagedResult<VideoListItemDto>>> GetVideos(
         [FromQuery] string? title,
-        [FromQuery] string? visibility,
+        [FromQuery(Name = "visibility")] VideoVisibility[]? visibility,
         [FromQuery] int? pageSize,
         [FromQuery] string? pageToken,
         CancellationToken ct)
@@ -71,10 +72,6 @@ public sealed class VideosController(
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidPageTokenException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-        catch (InvalidVisibilityException ex)
         {
             return BadRequest(new { error = ex.Message });
         }

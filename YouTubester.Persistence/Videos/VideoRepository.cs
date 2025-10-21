@@ -1,3 +1,5 @@
+using System.Text;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using YouTubester.Domain;
 
@@ -57,38 +59,61 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         return inserts + updates;
     }
 
-    public async Task<List<Video>> GetVideosPageAsync(string? title, IReadOnlyCollection<VideoVisibility>? visibilities, DateTimeOffset? afterPublishedAtUtc, string? afterVideoId, int take, CancellationToken ct)
+    public async Task<List<Video>> GetVideosPageAsync(
+        string? title,
+        IReadOnlyCollection<VideoVisibility>? visibilities,
+        DateTimeOffset? afterPublishedAtUtc,
+        string? afterVideoId,
+        int take,
+        CancellationToken ct)
     {
-        var query = db.Videos.AsNoTracking();
+        var sb = new StringBuilder();
+        sb.AppendLine("SELECT *");
+        sb.AppendLine("FROM Videos v");
+        sb.AppendLine("WHERE 1=1");
 
-        // Apply title filter (case-insensitive substring match)
+        var parameters = new List<object>();
+
         if (!string.IsNullOrWhiteSpace(title))
         {
-            var trimmedTitle = title.Trim();
-            var pattern = $"%{trimmedTitle}%";
-            query = query.Where(v => EF.Functions.Like(
-                EF.Functions.Collate(v.Title ?? "", "NOCASE"), pattern));
+            sb.AppendLine("  AND v.Title IS NOT NULL AND v.Title COLLATE NOCASE LIKE '%' || @title || '%'");
+            parameters.Add(new SqliteParameter("@title", title));
         }
 
-        // Apply visibility filter
         if (visibilities is { Count: > 0 })
         {
-            query = query.Where(v => visibilities.Contains(v.Visibility));
+            var inParams = new List<string>();
+            var i = 0;
+            foreach (var v in visibilities!)
+            {
+                var name = $"@vis{i++}";
+                inParams.Add(name);
+                parameters.Add(new SqliteParameter(name, (int)v));
+            }
+
+            sb.AppendLine($"  AND v.Visibility IN ({string.Join(", ", inParams)})");
         }
 
-        // Apply cursor filter for "strictly earlier" items in descending order
         if (afterPublishedAtUtc.HasValue && !string.IsNullOrEmpty(afterVideoId))
         {
-            query = query.Where(v => 
-                v.PublishedAt < afterPublishedAtUtc.Value ||
-                (v.PublishedAt == afterPublishedAtUtc.Value && 
-                 string.Compare(v.VideoId, afterVideoId, StringComparison.Ordinal) < 0));
+            sb.AppendLine("  AND (v.PublishedAt < @afterPub");
+            sb.AppendLine("       OR (v.PublishedAt = @afterPub AND v.VideoId COLLATE BINARY < @afterId))");
+
+            // With Microsoft.Data.Sqlite it’s safest to pass the DateTime value EF maps to
+            parameters.Add(new SqliteParameter("@afterPub", afterPublishedAtUtc.Value.UtcDateTime));
+            parameters.Add(new SqliteParameter("@afterId", afterVideoId!));
         }
 
-        return await query
-            .OrderByDescending(v => v.PublishedAt)
-            .ThenByDescending(v => v.VideoId)
-            .Take(take)
+        sb.AppendLine("ORDER BY v.PublishedAt DESC, v.VideoId DESC");
+        sb.AppendLine("LIMIT @take");
+
+        parameters.Add(new SqliteParameter("@take", take));
+
+        var sql = sb.ToString();
+
+        return await db.Videos
+            .FromSqlRaw(sql, parameters.ToArray())
+            .AsNoTracking()
             .ToListAsync(ct);
     }
 }
