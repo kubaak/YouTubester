@@ -1,5 +1,4 @@
-﻿using System.Threading.Channels;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using YouTubester.Domain;
 using Channel = YouTubester.Domain.Channel;
 

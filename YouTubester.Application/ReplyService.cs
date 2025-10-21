@@ -1,10 +1,7 @@
 ﻿using Hangfire;
-using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Replies;
 using YouTubester.Application.Jobs;
 using YouTubester.Domain;
-using YouTubester.Integration;
-using YouTubester.Persistence;
 using YouTubester.Persistence.Replies;
 
 namespace YouTubester.Application;
@@ -13,7 +10,9 @@ public class ReplyService(IReplyRepository repository, IBackgroundJobClient back
     : IReplyService
 {
     public Task<IEnumerable<Reply>> GetRepliesForApprovalAsync(CancellationToken cancellationToken)
-        => repository.GetRepliesForApprovalAsync(cancellationToken);
+    {
+        return repository.GetRepliesForApprovalAsync(cancellationToken);
+    }
 
     public async Task<Reply?> DeleteAsync(string commentId, CancellationToken cancellationToken)
     {
@@ -49,15 +48,15 @@ public class ReplyService(IReplyRepository repository, IBackgroundJobClient back
             : await repository.IgnoreManyAsync(toIgnore, ct);
 
         return new BatchIgnoreResult(
-            Requested: ids.Length,
-            Ignored: actuallyIgnored.Length,
-            AlreadyIgnored: alreadyIgnored.Length,
-            SkippedPosted: skippedPosted.Length,
-            NotFound: notFound.Length,
-            IgnoredIds: actuallyIgnored,
-            AlreadyIgnoredIds: alreadyIgnored,
-            SkippedPostedIds: skippedPosted,
-            NotFoundIds: notFound
+            ids.Length,
+            actuallyIgnored.Length,
+            alreadyIgnored.Length,
+            skippedPosted.Length,
+            notFound.Length,
+            actuallyIgnored,
+            alreadyIgnored,
+            skippedPosted,
+            notFound
         );
     }
 
@@ -74,37 +73,38 @@ public class ReplyService(IReplyRepository repository, IBackgroundJobClient back
                 var draft = await repository.GetReplyAsync(d.CommentId, cancellationToken);
                 if (draft is null)
                 {
-                    results.Add(new(d.CommentId, false, "Draft not found"));
+                    results.Add(new DraftDecisionResultDto(d.CommentId, false, "Draft not found"));
                     fail++;
                     continue;
                 }
 
                 if (string.IsNullOrWhiteSpace(d.ApprovedText))
                 {
-                    results.Add(new(d.CommentId, false, "Draft is empty"));
+                    results.Add(new DraftDecisionResultDto(d.CommentId, false, "Draft is empty"));
                     fail++;
                     continue;
                 }
 
                 draft.ApproveText(d.ApprovedText, DateTimeOffset.Now);
                 //todo from configuration
-                backgroundJobClient.Schedule<PostApprovedRepliesJob>(j => j.Run(draft.CommentId, JobCancellationToken.Null), TimeSpan.FromSeconds(10));
+                backgroundJobClient.Schedule<PostApprovedRepliesJob>(
+                    j => j.Run(draft.CommentId, JobCancellationToken.Null), TimeSpan.FromSeconds(10));
 
                 await repository.AddOrUpdateReplyAsync(draft, cancellationToken);
-                results.Add(new(d.CommentId, true));
+                results.Add(new DraftDecisionResultDto(d.CommentId, true));
                 ok++;
             }
             catch (Exception ex)
             {
-                results.Add(new(d.CommentId, false, ex.Message));
+                results.Add(new DraftDecisionResultDto(d.CommentId, false, ex.Message));
                 fail++;
             }
         }
 
         return new BatchDecisionResultDto(
-            Total: ok + fail,
-            Succeeded: ok,
-            Failed: fail,
-            Items: results);
+            ok + fail,
+            ok,
+            fail,
+            results);
     }
 }

@@ -1,7 +1,6 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using YouTubester.Application;
-using YouTubester.Application.Options;
 using YouTubester.Integration;
 using YouTubester.Persistence;
 using YouTubester.Persistence.Channels;

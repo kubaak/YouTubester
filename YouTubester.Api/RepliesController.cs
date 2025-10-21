@@ -1,5 +1,4 @@
 ﻿using YouTubester.Application;
-using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Replies;
 using YouTubester.Domain;
 
@@ -14,7 +13,9 @@ public class RepliesController(IReplyService service) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Reply>>> GetDrafts(CancellationToken cancellationToken = default)
-        => Ok(await service.GetRepliesForApprovalAsync(cancellationToken));
+    {
+        return Ok(await service.GetRepliesForApprovalAsync(cancellationToken));
+    }
 
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -34,7 +35,6 @@ public class RepliesController(IReplyService service) : ControllerBase
     [Consumes("application/json")]
     [ProducesResponseType(typeof(BatchDecisionResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-
     public async Task<ActionResult<BatchDecisionResultDto>> BatchApprove(
         [FromBody] DraftDecisionDto[] decisions,
         CancellationToken cancellationToken)
