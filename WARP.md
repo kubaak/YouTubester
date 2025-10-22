@@ -1,97 +1,210 @@
 # WARP.md
 
-This file provides guidance to WARP (warp.dev) when working with code in this repository.
+This file provides guidance for **WARP (warp.dev)** when working with code in this repository.
+
+---
 
 ## Commands
 
-- Restore and build
-  ```powershell path=null start=null
-  dotnet restore
-  dotnet build --no-restore
-  ```
-- Run API (ASP.NET Core, Swagger in Development, Hangfire dashboard at /hangfire)
-  ```powershell path=null start=null
-  dotnet run --project YouTubester.Api
-  ```
-- Run background worker (Hangfire server queues: replies, templating, default)
-  ```powershell path=null start=null
-  dotnet run --project YouTubester.Worker
-  ```
-- EF Core migrations (SQLite at ./.data/youtubester.db)
-  ```powershell path=null start=null
-  # Add a migration
-  dotnet ef migrations add <Name> --project YouTubester.Persistence
-  # Apply migrations
-  dotnet ef database update --project YouTubester.Persistence
-  ```
-- Lint/format (uses .editorconfig and Roslyn analyzers)
-  ```powershell path=null start=null
-  dotnet format
-  dotnet format analyzers
-  ```
-- Tests
-  - No test projects are present. If/when tests are added:
-    ```powershell path=null start=null
-    # Run all tests
-    dotnet test
-    # Run a single test by name
-    dotnet test --filter FullyQualifiedName~Namespace.ClassName.TestMethod
-    ```
-- User secrets (required for YouTube OAuth and AI config)
-  ```powershell path=null start=null
-  # API: YouTube OAuth (used by Integration via YouTubeAuth section)
-  dotnet user-secrets set "YouTubeAuth:ClientId"    "{{YOUTUBE_CLIENT_ID}}"    --project YouTubester.Api
-  dotnet user-secrets set "YouTubeAuth:ClientSecret" "{{YOUTUBE_CLIENT_SECRET}}" --project YouTubester.Api
-  # Worker: AI configuration (root-level "AI" section)
-  dotnet user-secrets set "AI:Endpoint" "http://localhost:11434" --project YouTubester.Worker
-  dotnet user-secrets set "AI:Model"    "gemma3:12b"              --project YouTubester.Worker
-  ```
+### Setup and Build
+```powershell
+dotnet restore
+dotnet build --no-restore
+```
 
-Notes
-- The API registers AI via AddAiClient(configuration) which binds the root "AI" section. The API's appsettings.json nests AI under "YouTube:AI"; to affect the runtime AI client for the API, provide root-level "AI" settings via secrets or an override appsettings.
-- Database file lives at ./.data/youtubester.db (created automatically). Delete this file to reset local data.
+### Run API
+Run the ASP.NET Core API (Swagger in Development, Hangfire dashboard at `/hangfire`):
+```powershell
+dotnet run --project YouTubester.Api
+# API available at: https://localhost:7031, http://localhost:5000
+# Swagger UI at: https://localhost:7031/swagger (Development only)
+# Hangfire dashboard at: https://localhost:7031/hangfire (Development only)
+```
 
-## High-level architecture
+### Run Background Worker
+Runs the Hangfire server with queues: `replies`, `templating`, `default`.
+```powershell
+dotnet run --project YouTubester.Worker
+```
 
-Projects (Clean, layered composition around YouTube + AI workflows):
-- YouTubester.Domain: Core entities and value objects
-  - Reply lifecycle: Pulled → Suggested → Approved → Posted/ Ignored (Reply methods enforce invariants and text sanitization)
-  - Video aggregate with immutable update logic (ApplyDetails) and convenience URLs
-  - Channel basic metadata
-- YouTubester.Persistence: Data access and infrastructure
-  - EF Core DbContext (YouTubesterDb) with SQLite, model configuration, and migrations; seeds demo Reply in Development
-  - Repositories
-    - Replies: load/approve/ignore/delete, batch status queries, ExecuteUpdate for bulk ignore
-    - Videos: read-all, upsert with change detection (inserts/updates consolidated)
-    - Channels: lookup by id/name
-  - Hangfire storage configured against the same SQLite file
-- YouTubester.Integration: External services
-  - YouTubeIntegration wraps google APIs: playlist scans, video details/updates, unanswered comment threads, playlist membership helpers
-  - Authentication via YouTubeAuth options and token store; service factory constructs YouTubeService instances
-  - AiClient (HTTP to local Ollama-like provider) for metadata and reply suggestions (JSON contract)
-- YouTubester.Application: Orchestration and jobs
-  - ReplyService: lists drafts, deletes, batch-approve (schedules PostApprovedRepliesJob), batch-ignore with detailed outcome
-  - VideoService: syncs channel uploads into DB in batches, maps privacy to domain visibility
-  - Hangfire jobs: PostApprovedRepliesJob (posts approved replies), CopyVideoTemplateJob (delegates to templating service)
-- YouTubester.Api: ASP.NET Core Web API
-  - Controllers
-    - Replies: GET drafts, DELETE draft, POST approve batch, POST batch-ignore
-    - Videos: POST sync/{channelName} (uses persisted Channel.UploadsPlaylistId), POST copy-template (enqueues job)
-  - Development: Swagger + Hangfire dashboard; optional database seeding guarded by appsettings.Development Seed.Enable
-- YouTubester.Worker: Background host
-  - Hosts Hangfire server with queues replies/templating/default, wires Application jobs and services
-  - CommentScanWorker exists but is currently commented out; it drafts replies using AI for public videos up to a configured cap
+### Local Infrastructure (Optional)
+Local PostgreSQL container (application uses SQLite by default):
+```powershell
+# Start PostgreSQL container (configured but not used by default)
+docker compose up -d
+# Stop infrastructure
+docker compose down
+```
 
-Key flows
-- Video sync: Api.VideosController → Application.VideoService → Integration.YouTubeIntegration → Persistence.VideoRepository (upsert)
-- Reply drafting/approval/posting
-  - Drafting (optional worker pass): Worker.CommentScanWorker → Integration (YouTube + AI) → Persistence.ReplyRepository
-  - Approval: Api.RepliesController → Application.ReplyService → Hangfire enqueues PostApprovedRepliesJob
-  - Posting: PostApprovedRepliesJob → Integration.ReplyAsync → Persistence.ReplyRepository update
+### Database (EF Core, SQLite at `./.data/youtubester.db`)
+```powershell
+# Add a migration
+dotnet ef migrations add <Name> --project YouTubester.Persistence
+# Apply migrations
+dotnet ef database update --project YouTubester.Persistence
+# Reset database
+Remove-Item ./.data/youtubester.db -Force -ErrorAction SilentlyContinue
+```
 
-Configuration
-- OAuth and AI settings are supplied via user-secrets or appsettings.*; Worker expects root-level "AI"; Integration’s YouTubeAuth is read from "YouTubeAuth". API development seeding is toggled via appsettings.Development.json (Seed.Enable).
+### Lint and Format
+Uses `.editorconfig` and Roslyn analyzers:
+```powershell
+dotnet format
+dotnet format analyzers
+```
 
-## Project Rules
-- Use primary constructors
-- Use collection expressions
+### Tests
+Integration test suite:
+```powershell
+# Run all tests
+dotnet test --nologo
+# Run integration tests only
+dotnet test tests/YouTubester.IntegrationTests --nologo
+# Run with coverage
+dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura
+# Run specific test by name pattern
+dotnet test --filter "FullyQualifiedName~VideosEndpoint_SmokeTests"
+```
+
+### User Secrets (YouTube OAuth + AI Integration)
+```powershell
+# YouTube OAuth credentials
+dotnet user-secrets set "YouTubeAuth:ClientId" "{{YOUTUBE_CLIENT_ID}}" --project YouTubester.Api
+dotnet user-secrets set "YouTubeAuth:ClientSecret" "{{YOUTUBE_CLIENT_SECRET}}" --project YouTubester.Api
+
+# AI configuration (Ollama or compatible)
+dotnet user-secrets set "AI:Endpoint" "http://localhost:11434" --project YouTubester.Api
+dotnet user-secrets set "AI:Model" "gemma3:12b" --project YouTubester.Api
+dotnet user-secrets set "AI:Endpoint" "http://localhost:11434" --project YouTubester.Worker
+dotnet user-secrets set "AI:Model" "gemma3:12b" --project YouTubester.Worker
+```
+
+---
+
+## API Endpoints
+
+### Videos
+- `GET /api/videos` — List videos with pagination, title/visibility filtering
+- `POST /api/videos/sync/{channelName}` — Sync channel videos from YouTube
+- `POST /api/videos/copy-template` — Enqueue video template copy job
+
+### Replies
+- `GET /api/replies` — Get draft replies for approval
+- `DELETE /api/replies/{id}` — Delete a draft reply
+- `POST /api/replies/approve` — Batch approve replies (schedules posting)
+- `POST /api/replies/batch-ignore` — Batch ignore replies
+
+---
+
+## Key DTOs
+
+- `VideoListItemDto` — Video for listing (VideoId, Title, PublishedAt, ThumbnailUrl)
+- `PagedResult<T>` — Paginated response wrapper (Items, NextPageToken)
+- `SyncVideosResult` — Video sync operation result
+- `BatchDecisionResultDto` — Batch reply operation result
+- `CopyVideoTemplateRequest` — Template copy job request
+
+*Note: All `DateTimeOffset` fields use ISO 8601 format in JSON per project coding rules.*
+
+---
+
+## Architecture Overview
+
+### Solution Layout (.NET 9)
+- `YouTubester.Api` — ASP.NET Core Web API with controllers, Swagger, Hangfire dashboard
+- `YouTubester.Application` — Application services, jobs, orchestration (Hangfire jobs)
+- `YouTubester.Domain` — Core entities (Video, Reply, Channel) and value objects
+- `YouTubester.Integration` — External services (YouTube API, AI client)
+- `YouTubester.Persistence` — Data access (EF Core, SQLite, repositories)
+- `YouTubester.Worker` — Background service host (Hangfire server, CommentScanWorker)
+- `tests/YouTubester.IntegrationTests` — Integration test suite
+
+### Key Dependencies
+- EF Core 9.0.9 with SQLite
+- Hangfire 1.8.21 with SQLite storage
+- ASP.NET Core with Swagger/OpenAPI
+- Google YouTube API v3
+- Moq + FluentAssertions (tests)
+
+### Database Indexes
+- **Videos:** (PublishedAt, VideoId) for pagination; UpdatedAt for sync; Title NOCASE for search
+- **Replies:** VideoId for queries
+- **Channels:** Primary key on ChannelId
+
+---
+
+## Key Flows
+
+### Video Listing with Pagination
+- **Entry:** `GET /api/videos?title=X&visibility=Public&pageSize=30&pageToken=ABC`
+- **Flow:** VideosController → VideoService → VideoRepository (cursor pagination)
+- **Database:** Uses (PublishedAt, VideoId) composite index for efficient keyset pagination
+- **Response:** `PagedResult<VideoListItemDto>` with base64-encoded cursor token
+
+### Video Synchronization from YouTube
+- **Entry:** `POST /api/videos/sync/{channelName}`
+- **Flow:** VideosController → VideoService → YouTubeIntegration → VideoRepository (batch upsert)
+- **External:** YouTube Data API v3 (playlist items + video details)
+- **Database:** Upserts videos with change detection; maps privacy status to domain enum
+
+### Reply Workflow (Draft → Approve → Post)
+- **Drafting:** CommentScanWorker → YouTube/AI integrations → ReplyRepository
+- **Approval:** `POST /api/replies/approve` → ReplyService → enqueue PostApprovedRepliesJob
+- **Posting:** Hangfire job → YouTubeIntegration.ReplyAsync → update Reply status
+
+### Background Processing
+- Worker hosts Hangfire server with queues: replies, templating, default
+- CommentScanWorker scans for unanswered comments and creates AI-suggested drafts
+- Jobs execute asynchronously: PostApprovedRepliesJob, CopyVideoTemplateJob
+
+---
+
+## Configuration
+
+### Environment Precedence
+Environment variables > user-secrets > `appsettings.{Environment}.json` > `appsettings.json`
+
+### Required Secrets (Both API and Worker)
+```powershell
+# YouTube OAuth
+dotnet user-secrets set "YouTubeAuth:ClientId" "{{CLIENT_ID}}"
+dotnet user-secrets set "YouTubeAuth:ClientSecret" "{{CLIENT_SECRET}}"
+
+# AI integration
+dotnet user-secrets set "AI:Endpoint" "http://localhost:11434"
+dotnet user-secrets set "AI:Model" "gemma3:12b"
+```
+
+### Configuration Sections
+- `VideoListing`: DefaultPageSize (30), MaxPageSize (100)
+- `Worker`: MaxDraftsPerRun (25), IntervalSeconds (600)
+- `YouTubeAuth`: ClientId, ClientSecret, ApplicationName
+- `AI`: Endpoint, Model, Enable flags
+- `Seed`: Enable (Development only)
+
+### Environment Variables (PowerShell)
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:AI__Endpoint = "http://localhost:11434"
+```
+
+### Database
+SQLite at `./.data/youtubester.db` (auto-created).  
+Hangfire uses the same database.  
+Docker Compose includes PostgreSQL but the app uses SQLite by default.
+
+### External Services
+- YouTube Data API v3 (OAuth 2.0)
+- AI provider (HTTP JSON API, typically Ollama)
+
+---
+
+## Project Coding Rules
+
+- Use **primary constructors**
+- Use **collection expressions**
+- Use `DateTimeOffset` for all timestamps
+- Don’t use abbreviations or shortcuts for variable names
+- Use `var` for local variable definitions
+- Create a **separate file for every public type**
+- Keep interfaces and implementations in separate files  
