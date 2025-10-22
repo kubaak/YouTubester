@@ -79,7 +79,7 @@ public class WorkerHost_SmokeTests
         // Arrange
         var capturingClient = _fixture.WorkerFactory.CapturingJobClient;
         capturingClient.Clear(); // Clear any jobs from previous tests
-        
+
         var testRequest = new CopyVideoTemplateRequest(
             "https://youtube.com/watch?v=source123",
             "https://youtube.com/watch?v=target456"
@@ -118,7 +118,7 @@ public class WorkerHost_SmokeTests
         // Assert
         jobId1.Should().Be("1");
         jobId2.Should().Be("2");
-        
+
         var enqueuedJobs = capturingClient.GetEnqueued<CopyVideoTemplateJob>();
         enqueuedJobs.Should().HaveCount(2);
         enqueuedJobs[0].JobId.Should().Be("1");

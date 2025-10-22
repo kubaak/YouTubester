@@ -1,10 +1,10 @@
 using Hangfire;
 using Hangfire.Storage.SQLite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
 using Moq;
 using YouTubester.Application;
 using YouTubester.Application.Jobs;
@@ -92,7 +92,7 @@ public class WorkerTestHostFactory : IDisposable
         // Add Hangfire without server - using SQLite storage like the main app
         services.AddHangfire(config =>
         {
-            config.UseSQLiteStorage(TestDatabasePath); 
+            config.UseSQLiteStorage(TestDatabasePath);
         });
 
         // DON'T add Hangfire server or CommentScanWorker hosted service

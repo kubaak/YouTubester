@@ -88,7 +88,7 @@ public class VideosEndpoint_SmokeTests
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, new JsonSerializerOptions
         {
@@ -111,7 +111,7 @@ public class VideosEndpoint_SmokeTests
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, new JsonSerializerOptions
         {
