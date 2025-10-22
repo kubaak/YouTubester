@@ -16,7 +16,7 @@ public class CapturingBackgroundJobClient : IBackgroundJobClient
     {
         var jobId = _nextJobId++.ToString();
         var capturedJob = new CapturedJob(jobId, job, state);
-        
+
         _capturedJobs.AddOrUpdate(
             job.Type,
             [capturedJob],
@@ -43,14 +43,14 @@ public class CapturingBackgroundJobClient : IBackgroundJobClient
 
     public List<CapturedJob> GetEnqueued<TJob>()
     {
-        return _capturedJobs.TryGetValue(typeof(TJob), out var jobs) 
+        return _capturedJobs.TryGetValue(typeof(TJob), out var jobs)
             ? jobs.Where(j => j.State is EnqueuedState).ToList()
             : new List<CapturedJob>();
     }
 
     public List<CapturedJob> GetScheduled<TJob>()
     {
-        return _capturedJobs.TryGetValue(typeof(TJob), out var jobs) 
+        return _capturedJobs.TryGetValue(typeof(TJob), out var jobs)
             ? jobs.Where(j => j.State is ScheduledState).ToList()
             : new List<CapturedJob>();
     }
@@ -59,7 +59,7 @@ public class CapturingBackgroundJobClient : IBackgroundJobClient
         where TJob : notnull
     {
         var capturedJobs = GetEnqueued<TJob>().Concat(GetScheduled<TJob>());
-        
+
         foreach (var capturedJob in capturedJobs)
         {
             var jobInstance = serviceProvider.GetRequiredService<TJob>();

@@ -29,7 +29,7 @@ public class TestFixture : IAsyncLifetime
         using var scope = ApiServices.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
         await SqliteCleaner.CleanAsync(dbContext.Database.GetDbConnection());
-        
+
         // Clear capturing job client
         ApiFactory.CapturingJobClient.Clear();
         WorkerFactory.CapturingJobClient.Clear();

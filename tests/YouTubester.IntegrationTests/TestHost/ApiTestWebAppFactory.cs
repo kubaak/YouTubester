@@ -21,13 +21,13 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
     public ApiTestWebAppFactory()
     {
         TestDatabasePath = Path.Combine(
-            Path.GetTempPath(), 
-            "YouTubester.IntegrationTests", 
+            Path.GetTempPath(),
+            "YouTubester.IntegrationTests",
             "integration-test.db");
-        
+
         var testDir = Path.GetDirectoryName(TestDatabasePath)!;
         Directory.CreateDirectory(testDir);
-        
+
         CapturingJobClient = new CapturingBackgroundJobClient();
         MockAiClient = new Mock<IAiClient>();
         MockYouTubeIntegration = new Mock<IYouTubeIntegration>();
@@ -36,7 +36,7 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Test");
-        
+
         builder.ConfigureServices(services =>
         {
             // Remove existing DB context registration
@@ -97,10 +97,10 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
             }
 
             // Remove any hosted services that might start Hangfire server
-            var hostedServices = services.Where(d => 
+            var hostedServices = services.Where(d =>
                 typeof(IHostedService).IsAssignableFrom(d.ServiceType) ||
                 typeof(IHostedService).IsAssignableFrom(d.ImplementationType)).ToList();
-            
+
             foreach (var service in hostedServices)
             {
                 if (service.ImplementationType?.Name.Contains("Hangfire") == true ||
@@ -144,7 +144,7 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
                 }
             }
         }
-        
+
         base.Dispose(disposing);
     }
 }
