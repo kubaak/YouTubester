@@ -17,7 +17,7 @@ using YouTubester.Worker;
 
 namespace YouTubester.IntegrationTests.TestHost;
 
-public class WorkerTestHostFactory : IDisposable
+public sealed class WorkerTestHostFactory : IDisposable
 {
     public IHost TestHost { get; }
     public string TestDatabasePath { get; }
@@ -29,10 +29,10 @@ public class WorkerTestHostFactory : IDisposable
     {
         TestDatabasePath = testDatabasePath;
         CapturingJobClient = new CapturingBackgroundJobClient();
-        MockAiClient = new Mock<IAiClient>();
-        MockYouTubeIntegration = new Mock<IYouTubeIntegration>();
+        MockAiClient = new Mock<IAiClient>(MockBehavior.Strict);
+        MockYouTubeIntegration = new Mock<IYouTubeIntegration>(MockBehavior.Strict);
 
-        var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(Array.Empty<string>());
+        var hostBuilder = Host.CreateDefaultBuilder([]);
 
         hostBuilder.UseEnvironment("Test");
         hostBuilder.ConfigureAppConfiguration(config =>
@@ -40,8 +40,7 @@ public class WorkerTestHostFactory : IDisposable
             config.Sources.Clear();
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                {"Worker:CommentScanIntervalMinutes", "60"},
-                {"ConnectionStrings:DefaultConnection", $"Data Source={TestDatabasePath}"},
+                { "ConnectionStrings:DefaultConnection", $"Data Source={TestDatabasePath}" }
             });
         });
 
@@ -90,10 +89,7 @@ public class WorkerTestHostFactory : IDisposable
         services.AddSingleton(MockYouTubeIntegration.Object);
 
         // Add Hangfire without server - using SQLite storage like the main app
-        services.AddHangfire(config =>
-        {
-            config.UseSQLiteStorage(TestDatabasePath);
-        });
+        services.AddHangfire(config => { config.UseSQLiteStorage(TestDatabasePath); });
 
         // DON'T add Hangfire server or CommentScanWorker hosted service
         // We want to test jobs in isolation without background processing
@@ -106,13 +102,8 @@ public class WorkerTestHostFactory : IDisposable
         await dbContext.Database.EnsureCreatedAsync();
     }
 
-    public T GetRequiredService<T>() where T : notnull
-    {
-        return TestHost.Services.GetRequiredService<T>();
-    }
-
     public void Dispose()
     {
-        TestHost?.Dispose();
+        TestHost.Dispose();
     }
 }

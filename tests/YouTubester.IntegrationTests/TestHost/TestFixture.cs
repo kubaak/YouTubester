@@ -1,3 +1,5 @@
+using AutoFixture;
+using AutoFixture.AutoMoq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -5,13 +7,15 @@ using YouTubester.Persistence;
 
 namespace YouTubester.IntegrationTests.TestHost;
 
-public class TestFixture : IAsyncLifetime
+public sealed class TestFixture : IAsyncLifetime
 {
     public ApiTestWebAppFactory ApiFactory { get; private set; } = null!;
     public WorkerTestHostFactory WorkerFactory { get; private set; } = null!;
     public HttpClient HttpClient { get; private set; } = null!;
     public IServiceProvider ApiServices => ApiFactory.Services;
     public IServiceProvider WorkerServices => WorkerFactory.TestHost.Services;
+    public IFixture Auto { get; private set; } = CreateAuto();
+    public static DateTimeOffset TestingDateTimeOffset { get; } = new(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     public async Task InitializeAsync()
     {
@@ -33,13 +37,31 @@ public class TestFixture : IAsyncLifetime
         // Clear capturing job client
         ApiFactory.CapturingJobClient.Clear();
         WorkerFactory.CapturingJobClient.Clear();
+        Auto = CreateAuto();
     }
 
     public Task DisposeAsync()
     {
-        HttpClient?.Dispose();
-        WorkerFactory?.Dispose();
-        ApiFactory?.Dispose();
+        HttpClient.Dispose();
+        WorkerFactory.Dispose();
+        ApiFactory.Dispose();
         return Task.CompletedTask;
+    }
+
+    private static IFixture CreateAuto()
+    {
+        var f = new Fixture()
+            .Customize(new AutoMoqCustomization { ConfigureMembers = true });
+
+        // Make complex object graphs safe:
+        f.Behaviors.Remove(new ThrowingRecursionBehavior());
+        f.Behaviors.Add(new OmitOnRecursionBehavior(1));
+
+        // Keep collections small & fast by default (adjust if you like)
+        f.RepeatCount = 1;
+
+        f.Register(() => TestingDateTimeOffset);
+
+        return f;
     }
 }

@@ -91,3 +91,7 @@ Key flows
 
 Configuration
 - OAuth and AI settings are supplied via user-secrets or appsettings.*; Worker expects root-level "AI"; Integration’s YouTubeAuth is read from "YouTubeAuth". API development seeding is toggled via appsettings.Development.json (Seed.Enable).
+
+## Project Rules
+- Use primary constructors
+- Use collection expressions

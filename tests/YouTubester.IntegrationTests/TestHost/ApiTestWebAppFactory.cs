@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -29,8 +30,8 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
         Directory.CreateDirectory(testDir);
 
         CapturingJobClient = new CapturingBackgroundJobClient();
-        MockAiClient = new Mock<IAiClient>();
-        MockYouTubeIntegration = new Mock<IYouTubeIntegration>();
+        MockAiClient = new Mock<IAiClient>(MockBehavior.Strict);
+        MockYouTubeIntegration = new Mock<IYouTubeIntegration>(MockBehavior.Strict);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -39,76 +40,27 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            // Remove existing DB context registration
-            var dbContextDescriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<YouTubesterDb>));
-            if (dbContextDescriptor != null)
-            {
-                services.Remove(dbContextDescriptor);
-            }
+            // Remove app registrations we’re replacing
+            services.RemoveAll<DbContextOptions<YouTubesterDb>>();
+            services.RemoveAll<YouTubesterDb>();
+            services.RemoveAll<IBackgroundJobClient>();
+            services.RemoveAll<IAiClient>();
+            services.RemoveAll<IYouTubeIntegration>();
 
-            var dbContextServiceDescriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(YouTubesterDb));
-            if (dbContextServiceDescriptor != null)
-            {
-                services.Remove(dbContextServiceDescriptor);
-            }
+            // Nuke ALL hosted services (covers Hangfire server and any BackgroundService)
+            services.RemoveAll<IHostedService>();
 
             // Add test database
             services.AddDbContext<YouTubesterDb>(options =>
             {
                 options.UseSqlite($"Data Source={TestDatabasePath}");
                 options.EnableSensitiveDataLogging();
+                options.EnableDetailedErrors();
             });
 
-            // Replace Hangfire background job client with capturing one
-            var jobClientDescriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(IBackgroundJobClient));
-            if (jobClientDescriptor != null)
-            {
-                services.Remove(jobClientDescriptor);
-            }
             services.AddSingleton<IBackgroundJobClient>(CapturingJobClient);
-
-            // Replace AI client with mock
-            var aiClientDescriptors = services.Where(
-                d => d.ServiceType == typeof(IAiClient)).ToList();
-            foreach (var descriptor in aiClientDescriptors)
-            {
-                services.Remove(descriptor);
-            }
             services.AddSingleton(MockAiClient.Object);
-
-            // Replace YouTube integration with mock
-            var youtubeDescriptors = services.Where(
-                d => d.ServiceType == typeof(IYouTubeIntegration)).ToList();
-            foreach (var descriptor in youtubeDescriptors)
-            {
-                services.Remove(descriptor);
-            }
             services.AddSingleton(MockYouTubeIntegration.Object);
-
-            // Remove Hangfire Server if registered
-            var hangfireServerDescriptor = services.Where(
-                d => d.ImplementationType?.Name.Contains("BackgroundJobServer") == true).ToList();
-            foreach (var descriptor in hangfireServerDescriptor)
-            {
-                services.Remove(descriptor);
-            }
-
-            // Remove any hosted services that might start Hangfire server
-            var hostedServices = services.Where(d =>
-                typeof(IHostedService).IsAssignableFrom(d.ServiceType) ||
-                typeof(IHostedService).IsAssignableFrom(d.ImplementationType)).ToList();
-
-            foreach (var service in hostedServices)
-            {
-                if (service.ImplementationType?.Name.Contains("Hangfire") == true ||
-                    service.ImplementationType?.Name.Contains("BackgroundJob") == true)
-                {
-                    services.Remove(service);
-                }
-            }
         });
 
         // Reduce logging noise in tests
@@ -131,7 +83,6 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
     {
         if (disposing)
         {
-            // Clean up test database file
             if (File.Exists(TestDatabasePath))
             {
                 try
