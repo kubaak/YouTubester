@@ -15,7 +15,7 @@ public sealed class YouTubeClientFactory(IOptions<YouTubeOptions> options) : IYo
     {
         var cred = await GoogleWebAuthorizationBroker.AuthorizeAsync(
             new ClientSecrets { ClientId = _opt.ClientId, ClientSecret = _opt.ClientSecret },
-            new[] { YouTubeService.Scope.YoutubeForceSsl },
+            [YouTubeService.Scope.YoutubeForceSsl],
             "user",
             cancellationToken,
             new FileDataStore("YouTubeAuth", true)

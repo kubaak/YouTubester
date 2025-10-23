@@ -14,10 +14,10 @@ public static class SqliteCleaner
 
         try
         {
-            using var transaction = await connection.BeginTransactionAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
 
             // Disable foreign keys temporarily
-            using (var cmd = connection.CreateCommand())
+            await using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "PRAGMA foreign_keys = OFF";
@@ -26,11 +26,11 @@ public static class SqliteCleaner
 
             // Get all user tables
             var tableNames = new List<string>();
-            using (var cmd = connection.CreateCommand())
+            await using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'";
-                using var reader = await cmd.ExecuteReaderAsync();
+                await using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
                     var tableName = reader.GetString(0);
@@ -41,14 +41,14 @@ public static class SqliteCleaner
             // Delete from all user tables
             foreach (var tableName in tableNames)
             {
-                using var cmd = connection.CreateCommand();
+                await using var cmd = connection.CreateCommand();
                 cmd.Transaction = transaction;
                 cmd.CommandText = $"DELETE FROM \"{tableName}\"";
                 await cmd.ExecuteNonQueryAsync();
             }
 
             // Reset auto-increment sequences
-            using (var cmd = connection.CreateCommand())
+            await using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "DELETE FROM sqlite_sequence";
@@ -63,7 +63,7 @@ public static class SqliteCleaner
             }
 
             // Re-enable foreign keys
-            using (var cmd = connection.CreateCommand())
+            await using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "PRAGMA foreign_keys = ON";

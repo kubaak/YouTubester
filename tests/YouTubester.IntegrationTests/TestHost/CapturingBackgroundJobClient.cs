@@ -31,31 +31,24 @@ public class CapturingBackgroundJobClient : IBackgroundJobClient
 
     public bool ChangeState(string jobId, IState state, string expectedState)
     {
-        // Not needed for basic test scenarios
         return true;
-    }
-
-    public IDisposable ChangeState(string jobId, IState state, params string[] expectedStates)
-    {
-        // Not needed for basic test scenarios
-        return new DummyDisposable();
     }
 
     public List<CapturedJob> GetEnqueued<TJob>()
     {
         return _capturedJobs.TryGetValue(typeof(TJob), out var jobs)
             ? jobs.Where(j => j.State is EnqueuedState).ToList()
-            : new List<CapturedJob>();
+            : [];
     }
 
-    public List<CapturedJob> GetScheduled<TJob>()
+    private List<CapturedJob> GetScheduled<TJob>()
     {
         return _capturedJobs.TryGetValue(typeof(TJob), out var jobs)
             ? jobs.Where(j => j.State is ScheduledState).ToList()
-            : new List<CapturedJob>();
+            : [];
     }
 
-    public async Task RunAll<TJob>(IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
+    public async Task RunAll<TJob>(IServiceProvider serviceProvider)
         where TJob : notnull
     {
         var capturedJobs = GetEnqueued<TJob>().Concat(GetScheduled<TJob>());
@@ -89,11 +82,6 @@ public class CapturingBackgroundJobClient : IBackgroundJobClient
         _capturedJobs.Clear();
         _nextJobId = 1;
     }
-
-    private class DummyDisposable : IDisposable
-    {
-        public void Dispose() { }
-    }
 }
 
 public record CapturedJob(string JobId, Job Job, IState State);
@@ -113,13 +101,15 @@ public static class CapturingBackgroundJobClientExtensions
         return client.Create(job, new EnqueuedState());
     }
 
-    public static string Schedule<T>(this CapturingBackgroundJobClient client, Expression<Action<T>> methodCall, TimeSpan delay)
+    public static string Schedule<T>(this CapturingBackgroundJobClient client, Expression<Action<T>> methodCall,
+        TimeSpan delay)
     {
         var job = Job.FromExpression(methodCall);
         return client.Create(job, new ScheduledState(delay));
     }
 
-    public static string Schedule<T>(this CapturingBackgroundJobClient client, Expression<Func<T, Task>> methodCall, TimeSpan delay)
+    public static string Schedule<T>(this CapturingBackgroundJobClient client, Expression<Func<T, Task>> methodCall,
+        TimeSpan delay)
     {
         var job = Job.FromExpression(methodCall);
         return client.Create(job, new ScheduledState(delay));

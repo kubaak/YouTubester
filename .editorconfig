@@ -14,7 +14,7 @@ dotnet_style_predefined_type_for_member_access = true:warning
 
 dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
 
-csharp_preferred_modifier_order = public,private,protected,internal,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,volatile,async:warning
+csharp_preferred_modifier_order = public, private, protected, internal, static, extern, new, virtual, abstract, sealed, override, readonly, unsafe, volatile, async:warning
 
 dotnet_style_object_initializer = true:warning
 dotnet_style_collection_initializer = true:warning
@@ -63,7 +63,7 @@ csharp_new_line_between_query_expression_clauses = true
 
 csharp_indent_case_contents = true
 csharp_indent_switch_labels = true
-csharp_indent_labels= flush_left
+csharp_indent_labels = flush_left
 
 csharp_space_after_cast = false
 
@@ -80,25 +80,26 @@ csharp_preserve_single_line_blocks = true
 ############################### 
 
 # Style Definitions 
-dotnet_naming_style.pascal_case_style.capitalization             = pascal_case 
-dotnet_naming_style.camel_case_style.capitalization              = camel_case 
-dotnet_naming_style.camel_case_style_underscore.capitalization   = camel_case 
-dotnet_naming_style.camel_case_style_underscore.required_prefix  = _ 
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+dotnet_naming_style.camel_case_style.capitalization = camel_case
+dotnet_naming_style.camel_case_style_underscore.capitalization = camel_case
+dotnet_naming_style.camel_case_style_underscore.required_prefix = _
 
 # Use PascalCase for constant fields   
-dotnet_naming_rule.constant_fields_should_be_pascal_case.severity = suggestion 
-dotnet_naming_rule.constant_fields_should_be_pascal_case.symbols  = constant_fields 
-dotnet_naming_rule.constant_fields_should_be_pascal_case.style    = pascal_case_style 
-dotnet_naming_symbols.constant_fields.applicable_kinds            = field 
-dotnet_naming_symbols.constant_fields.applicable_accessibilities  = * 
-dotnet_naming_symbols.constant_fields.required_modifiers          = const
+dotnet_naming_rule.constant_fields_should_be_pascal_case.severity = suggestion
+dotnet_naming_rule.constant_fields_should_be_pascal_case.symbols = constant_fields
+dotnet_naming_rule.constant_fields_should_be_pascal_case.style = pascal_case_style
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
 
 # Use camelCase with underscore prefix for private fields   
-dotnet_naming_rule.private_fields.severity = suggestion 
-dotnet_naming_rule.private_fields.symbols  = private_fields
-dotnet_naming_rule.private_fields.style    = camel_case_style_underscore 
-dotnet_naming_symbols.private_fields.applicable_kinds            = field 
-dotnet_naming_symbols.private_fields.applicable_accessibilities  = private 
+dotnet_naming_rule.private_fields.severity = suggestion
+dotnet_naming_rule.private_fields.symbols = private_fields
+dotnet_naming_rule.private_fields.style = camel_case_style_underscore
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
 
 # VSTHRD200: Use "Async" suffix for async methods
 dotnet_diagnostic.VSTHRD200.severity = none
+
