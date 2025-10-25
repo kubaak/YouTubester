@@ -99,7 +99,10 @@ public sealed class WorkerTestHostFactory : IDisposable
     {
         using var scope = TestHost.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
-        await dbContext.Database.EnsureCreatedAsync();
+
+        // Ensure database is deleted and recreated
+        await dbContext.Database.EnsureDeletedAsync();
+        await dbContext.Database.MigrateAsync();
     }
 
     public void Dispose()

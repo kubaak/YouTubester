@@ -6,8 +6,10 @@ using Moq;
 using Xunit;
 using YouTubester.Application;
 using YouTubester.Application.Jobs;
+using YouTubester.Domain;
 using YouTubester.Integration.Dtos;
 using YouTubester.IntegrationTests.TestHost;
+using YouTubester.Persistence;
 
 namespace YouTubester.IntegrationTests.Worker;
 
@@ -46,6 +48,56 @@ public class WorkerHost_SmokeTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var dummySourceVideoId = _fixture.Auto.Create<string>()[..11];
+        var dummyTargetVideoId = _fixture.Auto.Create<string>()[..11];
+
+        // Create source and target videos in database
+        using (var scope = _fixture.ApiServices.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+
+            var sourceVideo = Video.Create(
+                "ULTestPlaylist123",
+                dummySourceVideoId,
+                "Source Video Title",
+                "Source Video Description",
+                TestFixture.TestingDateTimeOffset.AddDays(-1),
+                TimeSpan.FromMinutes(5),
+                VideoVisibility.Public,
+                new[] { "source", "template" },
+                "22",
+                "en",
+                "en",
+                new GeoLocation(37.7749, -122.4194),
+                "San Francisco, CA",
+                TestFixture.TestingDateTimeOffset,
+                "etag-source",
+                true
+            );
+
+            var targetVideo = Video.Create(
+                "ULTestPlaylist456",
+                dummyTargetVideoId,
+                "Target Video Title",
+                "Target Video Description",
+                TestFixture.TestingDateTimeOffset.AddDays(-2),
+                TimeSpan.FromMinutes(3),
+                VideoVisibility.Private,
+                new[] { "target" },
+                "23",
+                "fr",
+                "fr",
+                null,
+                null,
+                TestFixture.TestingDateTimeOffset,
+                "etag-target",
+                false
+            );
+
+            dbContext.Videos.AddRange(sourceVideo, targetVideo);
+            await dbContext.SaveChangesAsync();
+        }
+
         // Act & Assert - Worker host builds and services are available
         _fixture.WorkerServices.Should().NotBeNull();
 
@@ -61,12 +113,9 @@ public class WorkerHost_SmokeTests
         jobClient.Should().BeOfType<CapturingBackgroundJobClient>();
         var capturingClient = (CapturingBackgroundJobClient)jobClient;
 
-        var dummySourceUrl = _fixture.Auto.Create<string>()[..11];
-        var dummyTargetUrl = _fixture.Auto.Create<string>()[..11];
-
         var testRequest = _fixture.Auto.Build<CopyVideoTemplateRequest>()
-            .With(p => p.SourceUrl, $"{LongVideoUrlBase}{dummySourceUrl}")
-            .With(p => p.TargetUrl, $"{LongVideoUrlBase}{dummyTargetUrl}")
+            .With(p => p.SourceVideoId, dummySourceVideoId)
+            .With(p => p.TargetVideoId, dummyTargetVideoId)
             .With(p => p.AiSuggestionOptions, (AiSuggestionOptions?)null)
             .Create();
 

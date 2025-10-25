@@ -19,10 +19,33 @@ public sealed class VideosController(
     IChannelRepository channelRepository
 ) : ControllerBase
 {
+    /// <summary>
+    /// Copies video template metadata from source to target video using cached data.
+    /// </summary>
+    /// <param name="request">Request containing source and target video IDs.</param>
+    /// <returns>Job ID for the background operation.</returns>
     [HttpPost("copy-template")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult CopyTemplate(
         [FromBody] CopyVideoTemplateRequest request)
     {
+        // Validation
+        if (string.IsNullOrWhiteSpace(request.SourceVideoId))
+        {
+            return BadRequest(new { error = "SourceVideoId is required and cannot be empty." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TargetVideoId))
+        {
+            return BadRequest(new { error = "TargetVideoId is required and cannot be empty." });
+        }
+
+        if (string.Equals(request.SourceVideoId.Trim(), request.TargetVideoId.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { error = "SourceVideoId and TargetVideoId must be different." });
+        }
+
         var res = jobClient.Enqueue<CopyVideoTemplateJob>(j => j.Run(request, JobCancellationToken.Null));
         return Ok(res);
     }

@@ -77,7 +77,10 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
     {
         using var scope = Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
-        await dbContext.Database.EnsureCreatedAsync();
+
+        // Ensure database is deleted and recreated
+        await dbContext.Database.EnsureDeletedAsync();
+        await dbContext.Database.MigrateAsync();
     }
 
     protected override void Dispose(bool disposing)

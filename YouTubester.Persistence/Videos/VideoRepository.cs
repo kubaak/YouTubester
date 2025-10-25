@@ -16,12 +16,12 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> UpsertAsync(IEnumerable<Video> videos, CancellationToken cancellationToken)
+    public async Task<(int Inserted, int Updated)> UpsertAsync(IEnumerable<Video> videos, CancellationToken cancellationToken)
     {
         var list = videos.ToList();
         if (list.Count == 0)
         {
-            return 0;
+            return (0, 0);
         }
 
         var ids = list.Select(i => i.VideoId).ToHashSet();
@@ -56,7 +56,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        return inserts + updates;
+        return (inserts, updates);
     }
 
     public async Task<List<Video>> GetVideosPageAsync(
@@ -129,5 +129,12 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             .AsNoTracking()
             .Where(v => videoIdsList.Contains(v.VideoId))
             .ToDictionaryAsync(v => v.VideoId, v => v.ETag, cancellationToken);
+    }
+
+    public async Task<Video?> GetVideoByIdAsync(string videoId, CancellationToken cancellationToken)
+    {
+        return await db.Videos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.VideoId == videoId, cancellationToken);
     }
 }

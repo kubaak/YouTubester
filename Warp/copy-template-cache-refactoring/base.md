@@ -1,11 +1,13 @@
-# Refactor Copy Template flow to use **videoIds** + cross-host integration test
+# WARP TASK: Refactor Copy Template flow to use cached **videoIds
+** (+ cached playlists) with cross-host integration test
 
-Refactor the copy-template feature to accept **video IDs** (not URLs) end-to-end, use **cached videos** from DB, and add
-an integration test that:
+You are an AI code assistant working in this repository. Implement the following refactor for the `copy-template`
+feature now that **playlists are cached in DB**:
 
-1) Uses **ApiTestWebAppFactory** to call the controller and **register** the Hangfire job into the *
-   *CapturingBackgroundJobClient**.
-2) Uses **WorkerTestHostFactory** to **execute** the captured job against the worker DI container.
+- Accept **video IDs** end-to-end (no URLs).
+- Use **cached entities** from the local DB (`Videos`, `Playlists`, `VideoPlaylists`) for all reads.
+- Keep external interaction limited to a single **YouTube update** call for the target video.
+- Add a **cross-host integration test** that enqueues via the API host and executes on the Worker host.
 
 ---
 
@@ -13,107 +15,149 @@ an integration test that:
 
 ### 1) Request contract change (URLs → IDs)
 
-- Replace the properties of the current CopyVideoTemplateRequest:
-    - SourceVideoUrl with SourceVideoId, TargetVideoUrl with TargetVideoId
-- **Controller** must accept the updated request (no URL parsing).
-- **Validation**:
-    - `SourceVideoId` and `TargetVideoId` are required, non-empty, different.
-
-### 2) Service behavior (cached reads, external write)
-
-- `VideoTemplatingService` must:
-    - Load **source** and **target** **from DB** using the provided IDs (no YouTube GETs).
-    - Build the final metadata to apply (fields from source; if `AiSuggestionOptions != null`, override
-      title/description via
-      `IAiClient.SuggestMetadataAsync` with optional `PromptEnrichment`).
-    - Call **`IYouTubeIntegration.UpdateVideoMetadataAsync(TargetVideoId, payload, ct)`** to push updates.
-    - **Only after a successful YouTube update**, persist the same metadata into the **target** `Video` entity via
-      `ApplyDetails(...)` and save.
-    - On YouTube failure: **do not** persist DB changes; return error.
-
-### 3) Job & enqueue path
-
-- `CopyVideoTemplateJob.Run(CopyVideoTemplateRequest req, JobCancellationToken token)` stays the same **signature-wise
-  **, but now the request contains **IDs**.
-- Controller action enqueues the job using the updated request.
+- Update `CopyVideoTemplateRequest`:
+    - `SourceVideoUrl` → `SourceVideoId`
+    - `TargetVideoUrl` → `TargetVideoId`
+- **Controller**
+    - Accept the updated IDs-based request (no URL parsing).
+    - **Validation**:
+        - `SourceVideoId` and `TargetVideoId` are **required**, **non-empty**, and **must differ**.
 
 ---
 
-## Test: cross-host E2E (one happy-path test)
+### 2) Service behavior (cached reads + YouTube write)
 
-**Name**: `CopyTemplate_EnqueueViaApi_RunOnWorker_UsesCachedSource_UpdatesTargetAndPersists`
+Refactor `VideoTemplatingService`:
 
-**Arrange**
+- **Load** source and target **from DB** via `VideoRepository` by ID.
+    - No YouTube GETs.
+    - Playlists are available via `VideoPlaylists` → `Playlists` (already cached; use if needed for templating context).
+- **Build effective metadata**:
+    - Start from **source** video’s stored fields (title, description, tags, category, language, location, etc.).
+    - If `AiSuggestionOptions != null`, call `IAiClient.SuggestMetadataAsync(...)` and **override** title/description (
+      and tags if spec requires).
+- **Push changes** to YouTube:
+  ```csharp
+  IYouTubeIntegration.UpdateVideoMetadataAsync(TargetVideoId, payload, ct);
 
-- Use **ApiTestWebAppFactory** and `SqliteCleaner` to start from an empty DB.
-- Seed DB:
-    - Introduce some Seeder helper class which will utilize autofixture via the property TestFixture.Auto
-    - **Source video**: rich metadata (title, description, tags, category, langs, location…).
-    - **Target video**: different metadata initially.
-- **Mocks**:
-    - `IYouTubeIntegration.UpdateVideoMetadataAsync(TargetVideoId, …)` → return **success**; capture the payload.
-    - `IAiClient.SuggestMetadataAsync(...)`:
-        - If `AiSuggestionOptions is not null`, return a title/description/tags payload to override title/description (
-          and tags if spec
-          requires).
-        - If `AiSuggestionOptions is null`, assert no AI call.
-- **Enqueue** via API:
-    - POST `/api/videos/copy-template` with **IDs** (`SourceVideoId`, `TargetVideoId`, optional
-      `AiSuggestionOptions`,...).
-    - Assert HTTP 200 and that **ApiTestWebAppFactory**’s `CapturingBackgroundJobClient` captured **one**
-      `CopyVideoTemplateJob` with the expected request.
+Persist on success only:
 
-**Execute on Worker**
+After a successful YouTube update, call ApplyDetails(...) on the target Video and SaveChangesAsync().
 
-- The test will run in the similar manner as current WorkerHost_SmokeTests.CopyVideoTemplateJob_Runs_Successfully
+Failure path:
 
-**Assert**
+If YouTube update fails, do not modify DB; return/propagate the error.
 
-- `IYouTubeIntegration.UpdateVideoMetadataAsync` was called **once** with:
-    - The **TargetVideoId** from the request.
-    - A payload equal to the **effective template** (source fields, AI overrides if enabled).
-- The **target `Video`** row in DB now equals the effective metadata (and `UpdatedAt` changed).
-- No DB changes occurred **before** the YouTube call (i.e., only persisted after success).
+Rule: All DB mutations for the target video occur after a confirmed successful YouTube update.
 
----
+3) Job & enqueue path
+   CopyVideoTemplateJob.Run(CopyVideoTemplateRequest req, JobCancellationToken token) stays the same signature.
 
-## Controller & route
+API controller enqueues the job using the updated request (IDs, not URLs).
 
-- Keep the existing route: `POST /api/videos/copy-template`
-- Replace the request body with the **IDs-based** `CopyVideoTemplateRequest`.
-- Update Swagger/XML docs accordingly.
+The job uses the service; no external reads, only the final YouTube update.
 
----
+Test: cross-host E2E (happy path)
+Name: CopyTemplate_EnqueueViaApi_RunOnWorker_UsesCachedSource_UpdatesTargetAndPersists
 
-## Files to touch / add
+Arrange
+Use ApiTestWebAppFactory + SqliteCleaner to start from an empty DB.
 
-- **Contracts**
-    - Update `CopyVideoTemplateRequest` to `{ SourceVideoId, TargetVideoId,.. }`
-- **API**
-    - Controller action to accept the **IDs-based** request (no URL parsing).
-- **Application**
-    - `VideoTemplatingService` refactor to DB reads + YouTube write + conditional DB persist on success.
-- **Job**
-    - `CopyVideoTemplateJob` still calls the service; no external reads.
-- **Integration tests**
-    - test with AiSuggestionOptions != null
-    - test with AiSuggestionOptions == null
+Seed DB (Seeder helper OK):
 
----
+Source video: rich metadata (title, description, tags, category, languages, location, etc.).
 
-## Output
+Target video: different metadata initially.
 
-- a new feature branch:
-    - `feature/copy-template-cache-refactoring`
-- Include build & test commands:
-    - `dotnet build`
-    - `dotnet test tests/YouTubester.IntegrationTests -c Release`
+Optional realism: link one/both videos to cached playlists via VideoPlaylists.
 
----
+Mocks:
 
-## Guardrails
+IYouTubeIntegration.UpdateVideoMetadataAsync(TargetVideoId, …) → return success; capture payload.
 
-- **Do not** start Hangfire Server in tests.
-- Keep DB updates **strictly** after successful YouTube update.
-- Use **Moq** & **FluentAssertions**.
-- Test uses **ApiTestWebAppFactory** to enqueue and **WorkerTestHostFactory** to execute.
+IAiClient.SuggestMetadataAsync(...):
+
+With AiSuggestionOptions != null → return enriched fields to override.
+
+With AiSuggestionOptions == null → assert no AI call.
+
+Act
+Enqueue via API:
+
+POST /api/videos/copy-template with JSON { SourceVideoId, TargetVideoId, AiSuggestionOptions? }.
+
+Assert 200 OK and that ApiTestWebAppFactory.CapturingBackgroundJobClient captured exactly one CopyVideoTemplateJob with
+expected request.
+
+Execute the captured job against WorkerTestHostFactory (similar to
+WorkerHost_SmokeTests.CopyVideoTemplateJob_Runs_Successfully).
+
+Assert
+IYouTubeIntegration.UpdateVideoMetadataAsync called once with:
+
+The correct TargetVideoId.
+
+A payload equal to the effective template (source fields + optional AI overrides).
+
+Target Video row updated to match the effective metadata and UpdatedAt changed.
+
+No DB changes happened before the YouTube call (i.e., only persisted after success).
+
+Controller & route
+Keep existing route: POST /api/videos/copy-template
+
+Replace the request model with the IDs-based CopyVideoTemplateRequest.
+
+Update Swagger/XML docs to reflect the new contract (IDs, not URLs).
+
+Files to touch / add
+Contracts
+
+Update CopyVideoTemplateRequest → { string SourceVideoId, string TargetVideoId, AiSuggestionOptions? }.
+
+API
+
+Controller action: accept IDs-based request and enqueue job.
+
+Application
+
+VideoTemplatingService: use DB reads, build effective metadata, call YouTube, then persist.
+
+Job
+
+CopyVideoTemplateJob: unchanged signature; no external reads.
+
+Integration tests
+
+Add tests for both AiSuggestionOptions != null and AiSuggestionOptions == null.
+
+Output
+Create feature branch:
+
+feature/copy-template-cache-refactoring
+
+Commands:
+
+bash
+Copy code
+dotnet build
+dotnet test tests/YouTubester.IntegrationTests -c Release
+Guardrails
+Do not start Hangfire Server in tests.
+
+Keep DB updates strictly after a successful YouTube update.
+
+Use Moq & FluentAssertions.
+
+Use ApiTestWebAppFactory to enqueue and WorkerTestHostFactory to execute the job.
+
+Acceptance Criteria
+✅ Request uses video IDs (no URLs).
+
+✅ Service relies solely on cached DB reads (Videos/Playlists) prior to update.
+
+✅ YouTube update occurs once; DB persistence only on success.
+
+✅ Cross-host integration test passes (enqueue on API, execute on Worker).
+
+✅ Swagger/docs updated to reflect the IDs-based request.

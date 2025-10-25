@@ -126,8 +126,9 @@ public sealed class ChannelSyncService(
             // Flush in batches to keep memory/transactions modest
             if (batch.Count >= VideoBatchSize)
             {
-                var changedCount = await videoRepository.UpsertAsync(batch.Select(b => b.Value), cancellationToken);
-                totalVideosInserted += changedCount; // Repository returns total changed, approximation for now
+                var (inserted, updated) = await videoRepository.UpsertAsync(batch.Select(b => b.Value), cancellationToken);
+                totalVideosInserted += inserted;
+                totalVideosUpdated += updated;
                 batch.Clear();
             }
         }
@@ -135,8 +136,9 @@ public sealed class ChannelSyncService(
         // Flush remaining batch
         if (batch.Count > 0)
         {
-            var changedCount = await videoRepository.UpsertAsync(batch.Select(b => b.Value), cancellationToken);
-            totalVideosUpdated += changedCount;
+            var (inserted, updated) = await videoRepository.UpsertAsync(batch.Select(b => b.Value), cancellationToken);
+            totalVideosInserted += inserted;
+            totalVideosUpdated += updated;
         }
 
         // Update cutoff if we processed any videos
@@ -263,7 +265,8 @@ public sealed class ChannelSyncService(
 
                             if (videosToUpsert.Count > 0)
                             {
-                                await videoRepository.UpsertAsync(videosToUpsert, cancellationToken);
+                                var (inserted, updated) = await videoRepository.UpsertAsync(videosToUpsert, cancellationToken);
+                                // Note: We don't track these counts separately since they're for playlist membership videos
                             }
                         }
                     }
