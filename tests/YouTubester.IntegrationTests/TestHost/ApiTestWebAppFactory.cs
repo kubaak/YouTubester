@@ -1,4 +1,6 @@
 using Hangfire;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using YouTubester.Api;
 using YouTubester.Integration;
@@ -41,12 +44,19 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            // Remove app registrations we’re replacing
+            // Remove app registrations we're replacing
             services.RemoveAll<DbContextOptions<YouTubesterDb>>();
             services.RemoveAll<YouTubesterDb>();
             services.RemoveAll<IBackgroundJobClient>();
             services.RemoveAll<IAiClient>();
             services.RemoveAll<IYouTubeIntegration>();
+
+            // Also remove authorization services
+            services.RemoveAll<IConfigureOptions<AuthenticationOptions>>();
+            services.RemoveAll<IPostConfigureOptions<AuthenticationOptions>>();
+            services.RemoveAll<IAuthorizationService>();
+            services.RemoveAll<IAuthorizationPolicyProvider>();
+            services.RemoveAll<IAuthorizationHandlerProvider>();
 
             // Nuke ALL hosted services (covers Hangfire server and any BackgroundService)
             services.RemoveAll<IHostedService>();
@@ -62,6 +72,9 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
             services.AddSingleton<IBackgroundJobClient>(CapturingJobClient);
             services.AddSingleton(MockAiClient.Object);
             services.AddSingleton(MockYouTubeIntegration.Object);
+
+            // Add mock authentication
+            services.AddMockAuthentication();
         });
 
         // Reduce logging noise in tests

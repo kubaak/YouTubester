@@ -56,6 +56,8 @@ public sealed class AiClient(HttpClient httpClient, IOptions<AiOptions> aiOption
     public async Task<string?> SuggestReplyAsync(string videoTitle, IEnumerable<string> tags, string commentText,
         CancellationToken cancellationToken)
     {
+        logger.LogInformation("Getting suggested reply for Title: {Title}, Comment: {Comment}", videoTitle,
+            commentText);
         var prompt = $$"""
 
                        System: You are the channel owner. Be brief, kind, and helpful. Return JSON only.
