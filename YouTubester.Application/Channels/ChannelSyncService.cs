@@ -67,6 +67,8 @@ public sealed class ChannelSyncService(
         var maxPublishedAt = DateTimeOffset.MinValue;
         var processedAnyVideos = false;
 
+        var newOrUpdatedVideoIds = new HashSet<string>(StringComparer.Ordinal);
+
         await foreach (var videoDto in youTubeIntegration.GetAllVideosAsync(uploadsPlaylistId, cutoff, cancellationToken))
         {
             // We already have this video (race condition)
@@ -76,6 +78,7 @@ public sealed class ChannelSyncService(
             }
 
             processedAnyVideos = true;
+            newOrUpdatedVideoIds.Add(videoDto.VideoId);
 
             // Track maximum published date for cutoff update
             if (videoDto.PublishedAt > maxPublishedAt)
@@ -84,6 +87,19 @@ public sealed class ChannelSyncService(
             }
 
             var visibility = VideoVisibilityMapper.MapVisibility(videoDto.PrivacyStatus, videoDto.PublishedAt, DateTimeOffset.UtcNow);
+
+            // Detect comments availability for new/updated videos
+            bool? commentsAllowed = null;
+            try
+            {
+                commentsAllowed = await youTubeIntegration.CheckCommentsAllowedAsync(videoDto.VideoId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to check comments availability for video {VideoId}", videoDto.VideoId);
+                // Leave commentsAllowed as null if we can't determine it
+            }
+
             var video = Video.Create(
                 uploadsPlaylistId,
                 videoDto.VideoId,
@@ -100,7 +116,9 @@ public sealed class ChannelSyncService(
                     ? new GeoLocation(videoDto.Location.Value.lat, videoDto.Location.Value.lng)
                     : null,
                 videoDto.LocationDescription,
-                cachedAt
+                cachedAt,
+                videoDto.ETag,
+                commentsAllowed
             );
 
             batch.TryAdd(videoDto.VideoId, video);
@@ -134,17 +152,25 @@ public sealed class ChannelSyncService(
     private async Task<(int PlaylistsUpserted, int MembershipsAdded, int MembershipsRemoved)> SyncPlaylistMembershipsAsync(string channelId, CancellationToken cancellationToken)
     {
         var currentTime = DateTimeOffset.UtcNow;
+        var channel = await channelRepository.GetChannelAsync(channelId, cancellationToken);
+        if (channel == null)
+        {
+            logger.LogError("Channel {ChannelId} not found during playlist membership sync", channelId);
+            return (0, 0, 0);
+        }
+
         var totalPlaylistsUpserted = 0;
         var totalMembershipsAdded = 0;
         var totalMembershipsRemoved = 0;
 
-        // Fetch remote playlists
-        var remotePlaylistsList = new List<Playlist>();
-        await foreach (var (playlistId, title) in youTubeIntegration.GetPlaylistsAsync(channelId, cancellationToken))
-        {
-            var playlist = Playlist.Create(playlistId, channelId, title, currentTime);
-            remotePlaylistsList.Add(playlist);
-        }
+        // Fetch remote playlists with ETag support
+        // For now, we don't have a stored ETag for the entire playlist collection, so we pass null
+        // In the future, this could be optimized to store collection-level ETags
+        var remotePlaylistDtos = await youTubeIntegration.GetMyPlaylistsAsync(null, cancellationToken);
+        var remotePlaylistsList = remotePlaylistDtos
+            .Where(dto => !string.IsNullOrWhiteSpace(dto.Id))
+            .Select(dto => Playlist.Create(dto.Id, channelId, dto.Title, currentTime, dto.ETag))
+            .ToList();
 
         logger.LogDebug("Found {PlaylistCount} remote playlists for channel {ChannelId}", remotePlaylistsList.Count, channelId);
 
@@ -181,6 +207,67 @@ public sealed class ChannelSyncService(
                 // Add memberships (repository ensures FK safety)
                 if (toAdd.Count > 0)
                 {
+                    // First, check if we need to fetch details for unknown videos
+                    var existingVideoIds = await videoRepository.GetVideoETagsAsync(toAdd, cancellationToken);
+                    var unknownVideoIds = toAdd.Except(existingVideoIds.Keys).ToList();
+
+                    if (unknownVideoIds.Count > 0)
+                    {
+                        logger.LogDebug("Fetching details for {UnknownVideoCount} unknown videos from playlist {PlaylistId}",
+                            unknownVideoIds.Count, playlist.PlaylistId);
+
+                        // Fetch video details in batches
+                        const int batchSize = 50;
+                        for (var i = 0; i < unknownVideoIds.Count; i += batchSize)
+                        {
+                            var batch = unknownVideoIds.Skip(i).Take(batchSize);
+                            var videoDtos = await youTubeIntegration.GetVideosAsync(batch, null, cancellationToken);
+
+                            var videosToUpsert = new List<Video>();
+                            foreach (var dto in videoDtos)
+                            {
+                                // Detect comments availability for newly discovered videos
+                                bool? commentsAllowed = null;
+                                try
+                                {
+                                    commentsAllowed = await youTubeIntegration.CheckCommentsAllowedAsync(dto.VideoId, cancellationToken);
+                                }
+                                catch (Exception ex)
+                                {
+                                    logger.LogWarning(ex, "Failed to check comments availability for discovered video {VideoId}", dto.VideoId);
+                                }
+
+                                var visibility = VideoVisibilityMapper.MapVisibility(dto.PrivacyStatus, dto.PublishedAt, DateTimeOffset.UtcNow);
+                                var video = Video.Create(
+                                    channel.UploadsPlaylistId, // We don't know the actual uploads playlist, using channel's uploads playlist
+                                    dto.VideoId,
+                                    dto.Title,
+                                    dto.Description,
+                                    dto.PublishedAt,
+                                    dto.Duration,
+                                    visibility,
+                                    dto.Tags,
+                                    dto.CategoryId,
+                                    dto.DefaultLanguage,
+                                    dto.DefaultAudioLanguage,
+                                    dto.Location.HasValue
+                                        ? new GeoLocation(dto.Location.Value.lat, dto.Location.Value.lng)
+                                        : null,
+                                    dto.LocationDescription,
+                                    currentTime,
+                                    dto.ETag,
+                                    commentsAllowed
+                                );
+                                videosToUpsert.Add(video);
+                            }
+
+                            if (videosToUpsert.Count > 0)
+                            {
+                                await videoRepository.UpsertAsync(videosToUpsert, cancellationToken);
+                            }
+                        }
+                    }
+
                     var addedCount = await playlistRepository.AddMembershipsAsync(playlist.PlaylistId, toAdd, cancellationToken);
                     totalMembershipsAdded += addedCount;
                 }

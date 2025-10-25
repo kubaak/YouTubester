@@ -46,7 +46,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
                     video.Title, video.Description, video.PublishedAt, video.Duration,
                     video.Visibility, video.Tags, video.CategoryId, video.DefaultLanguage,
                     video.DefaultAudioLanguage, video.Location, video.LocationDescription, now,
-                    video.ThumbnailUrl
+                    video.ThumbnailUrl, video.ETag, video.CommentsAllowed
                 );
                 if (changed)
                 {
@@ -115,5 +115,19 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             .FromSqlRaw(sql, parameters.ToArray())
             .AsNoTracking()
             .ToListAsync(ct);
+    }
+
+    public async Task<Dictionary<string, string?>> GetVideoETagsAsync(IEnumerable<string> videoIds, CancellationToken cancellationToken)
+    {
+        var videoIdsList = videoIds.ToList();
+        if (videoIdsList.Count == 0)
+        {
+            return new Dictionary<string, string?>();
+        }
+
+        return await db.Videos
+            .AsNoTracking()
+            .Where(v => videoIdsList.Contains(v.VideoId))
+            .ToDictionaryAsync(v => v.VideoId, v => v.ETag, cancellationToken);
     }
 }

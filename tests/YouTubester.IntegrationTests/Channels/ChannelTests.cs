@@ -65,6 +65,8 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video123",
                 null
             ),
             new VideoDto(
@@ -80,6 +82,8 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video456",
                 null
             )
         };
@@ -112,6 +116,19 @@ public sealed class ChannelTests
         fixture.ApiFactory.MockYouTubeIntegration
             .Setup(x => x.GetPlaylistVideoIdsAsync("playlist456", It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist456"]));
+
+        // Mock new integration methods
+        fixture.ApiFactory.MockYouTubeIntegration
+            .Setup(x => x.CheckCommentsAllowedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((bool?)null); // Return null for unknown status
+
+        fixture.ApiFactory.MockYouTubeIntegration
+            .Setup(x => x.GetMyPlaylistsAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockPlaylistData.Select(p => new YouTubester.Integration.Dtos.PlaylistDto(p.Id, p.Title, $"etag-{p.Id}")).ToList());
+
+        fixture.ApiFactory.MockYouTubeIntegration
+            .Setup(x => x.GetVideosAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockVideos.ToList().AsReadOnly());
 
         // Act
         var response = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
@@ -231,6 +248,8 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video789-v1",
                 null
             )
         };
@@ -250,6 +269,8 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video789-v2",
                 null
             )
         };
@@ -277,6 +298,20 @@ public sealed class ChannelTests
         fixture.ApiFactory.MockYouTubeIntegration
             .Setup(x => x.GetPlaylistVideoIdsAsync("playlist789", It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist789"]));
+
+        // Mock new integration methods
+        fixture.ApiFactory.MockYouTubeIntegration
+            .Setup(x => x.CheckCommentsAllowedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((bool?)null); // Return null for unknown status
+
+        fixture.ApiFactory.MockYouTubeIntegration
+            .Setup(x => x.GetMyPlaylistsAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockPlaylistData.Select(p => new YouTubester.Integration.Dtos.PlaylistDto(p.Id, p.Title, $"etag-{p.Id}")).ToList());
+
+        fixture.ApiFactory.MockYouTubeIntegration
+            .SetupSequence(x => x.GetVideosAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockVideosFirstCall.ToList().AsReadOnly())
+            .ReturnsAsync(mockVideosSecondCall.ToList().AsReadOnly());
 
         // Act - First call
         var firstResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);

@@ -47,7 +47,7 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
             }
             else
             {
-                existingPlaylist.UpdateTitle(playlist.Title, currentTime);
+                existingPlaylist.UpdateTitle(playlist.Title, currentTime, playlist.ETag);
                 updatedCount++;
             }
         }
@@ -151,5 +151,19 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
             playlist.SetLastMembershipSyncAt(syncedAt);
             await databaseContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    public async Task<Dictionary<string, string?>> GetPlaylistETagsAsync(IEnumerable<string> playlistIds, CancellationToken cancellationToken)
+    {
+        var playlistIdsList = playlistIds.ToList();
+        if (playlistIdsList.Count == 0)
+        {
+            return new Dictionary<string, string?>();
+        }
+
+        return await databaseContext.Playlists
+            .AsNoTracking()
+            .Where(p => playlistIdsList.Contains(p.PlaylistId))
+            .ToDictionaryAsync(p => p.PlaylistId, p => p.ETag, cancellationToken);
     }
 }

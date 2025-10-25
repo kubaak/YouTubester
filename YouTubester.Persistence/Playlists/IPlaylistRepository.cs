@@ -11,4 +11,5 @@ public interface IPlaylistRepository
     Task<int> AddMembershipsAsync(string playlistId, IEnumerable<string> videoIds, CancellationToken cancellationToken);
     Task<int> RemoveMembershipsAsync(string playlistId, IEnumerable<string> videoIds, CancellationToken cancellationToken);
     Task UpdateLastMembershipSyncAtAsync(string playlistId, DateTimeOffset syncedAt, CancellationToken cancellationToken);
+    Task<Dictionary<string, string?>> GetPlaylistETagsAsync(IEnumerable<string> playlistIds, CancellationToken cancellationToken);
 }

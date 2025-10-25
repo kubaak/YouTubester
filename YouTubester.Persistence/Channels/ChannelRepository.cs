@@ -38,4 +38,22 @@ public sealed class ChannelRepository(YouTubesterDb db) : IChannelRepository
         channel.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task UpdateChannelAsync(Channel channel, CancellationToken cancellationToken)
+    {
+        var existingChannel = await db.Set<Channel>().FirstOrDefaultAsync(c => c.ChannelId == channel.ChannelId, cancellationToken);
+        if (existingChannel != null)
+        {
+            existingChannel.Name = channel.Name;
+            existingChannel.UploadsPlaylistId = channel.UploadsPlaylistId;
+            existingChannel.ETag = channel.ETag;
+            existingChannel.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            db.Set<Channel>().Add(channel);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
 }

@@ -28,4 +28,13 @@ public interface IYouTubeIntegration
 
     IAsyncEnumerable<string> GetVideoIdsNewerThanAsync(string channelId, DateTimeOffset? cutoff,
         CancellationToken cancellationToken);
+
+    Task<bool?> CheckCommentsAllowedAsync(string videoId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<VideoDto>> GetVideosAsync(IEnumerable<string> videoIds, string? ifNoneMatch,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PlaylistDto>> GetMyPlaylistsAsync(string? ifNoneMatch, CancellationToken cancellationToken);
+
+    Task<ChannelDto?> GetChannelAsync(string channelId, string? ifNoneMatch, CancellationToken cancellationToken);
 }
