@@ -1,4 +1,5 @@
 using Hangfire;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Application;
 using YouTubester.Application.Contracts;
@@ -13,6 +14,7 @@ namespace YouTubester.Api;
 [ApiController]
 [Route("api/videos")]
 [Tags("Videos")]
+[Authorize]
 public sealed class VideosController(
     IBackgroundJobClient jobClient,
     IVideoService service,

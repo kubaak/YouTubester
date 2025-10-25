@@ -1,14 +1,15 @@
-﻿using YouTubester.Application;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using YouTubester.Application;
 using YouTubester.Application.Contracts.Replies;
 using YouTubester.Domain;
 
 namespace YouTubester.Api;
 
-using Microsoft.AspNetCore.Mvc;
-
 [ApiController]
 [Route("api/replies")]
 [Tags("Replies")]
+[Authorize]
 public class RepliesController(IReplyService service) : ControllerBase
 {
     [HttpGet]

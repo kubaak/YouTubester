@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Application.Channels;
 using YouTubester.Persistence.Channels;
@@ -7,6 +8,7 @@ namespace YouTubester.Api;
 [ApiController]
 [Route("api/channels")]
 [Tags("Channels")]
+[Authorize]
 public sealed class ChannelController(
     IChannelSyncService channelSyncService,
     IChannelRepository channelRepository

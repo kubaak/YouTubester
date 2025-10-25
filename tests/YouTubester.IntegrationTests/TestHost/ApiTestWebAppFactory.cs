@@ -1,4 +1,6 @@
 using Hangfire;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -41,12 +43,29 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            // Remove app registrations we’re replacing
+            // Remove app registrations we're replacing
             services.RemoveAll<DbContextOptions<YouTubesterDb>>();
             services.RemoveAll<YouTubesterDb>();
             services.RemoveAll<IBackgroundJobClient>();
             services.RemoveAll<IAiClient>();
             services.RemoveAll<IYouTubeIntegration>();
+
+            // Remove ALL authentication related services
+            var authServiceTypes = services
+                .Where(s => s.ServiceType.Namespace?.StartsWith("Microsoft.AspNetCore.Authentication") == true)
+                .Select(s => s.ServiceType)
+                .Distinct()
+                .ToList();
+
+            foreach (var serviceType in authServiceTypes)
+            {
+                services.RemoveAll(serviceType);
+            }
+
+            // Also remove authorization services
+            services.RemoveAll<IAuthorizationService>();
+            services.RemoveAll<IAuthorizationPolicyProvider>();
+            services.RemoveAll<IAuthorizationHandlerProvider>();
 
             // Nuke ALL hosted services (covers Hangfire server and any BackgroundService)
             services.RemoveAll<IHostedService>();
@@ -62,6 +81,9 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
             services.AddSingleton<IBackgroundJobClient>(CapturingJobClient);
             services.AddSingleton(MockAiClient.Object);
             services.AddSingleton(MockYouTubeIntegration.Object);
+
+            // Add mock authentication
+            services.AddMockAuthentication();
         });
 
         // Reduce logging noise in tests
