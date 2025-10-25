@@ -30,7 +30,7 @@ public class VideosEndpoint_SmokeTests(TestFixture fixture)
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, _serializerOptions);
 
         result.Should().NotBeNull();
-        result!.Items.Should().BeEmpty();
+        result.Items.Should().BeEmpty();
         result.NextPageToken.Should().BeNull();
     }
 
@@ -63,7 +63,7 @@ public class VideosEndpoint_SmokeTests(TestFixture fixture)
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, _serializerOptions);
 
         result.Should().NotBeNull();
-        result!.Items.Should().BeEmpty();
+        result.Items.Should().BeEmpty();
         result.NextPageToken.Should().BeNull();
     }
 
@@ -83,7 +83,7 @@ public class VideosEndpoint_SmokeTests(TestFixture fixture)
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, _serializerOptions);
 
         result.Should().NotBeNull();
-        result!.Items.Should().BeEmpty();
+        result.Items.Should().BeEmpty();
         result.NextPageToken.Should().BeNull();
     }
 }

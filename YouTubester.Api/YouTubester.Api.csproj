@@ -9,14 +9,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Hangfire.AspNetCore" Version="1.8.21" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.2"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.4" />
+        <PackageReference Include="Hangfire.AspNetCore" Version="1.8.21"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.10"/>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6"/>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\YouTubester.Application\YouTubester.Application.csproj" />
+        <ProjectReference Include="..\YouTubester.Application\YouTubester.Application.csproj"/>
     </ItemGroup>
 
 </Project>

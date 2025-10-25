@@ -1,5 +1,6 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using YouTubester.Api.Infrastructure;
 using YouTubester.Application;
 using YouTubester.Application.Channels;
 using YouTubester.Integration;
@@ -40,7 +41,10 @@ var rootPath = builder.Environment.ContentRootPath;
 builder.Services.AddDatabase(rootPath);
 builder.Services.AddHangFireStorage(builder.Configuration, rootPath);
 
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 var app = builder.Build();
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
@@ -65,5 +69,7 @@ app.Run();
 // Make Program class accessible for integration testing
 namespace YouTubester.Api
 {
-    public partial class Program { }
+    public partial class Program
+    {
+    }
 }

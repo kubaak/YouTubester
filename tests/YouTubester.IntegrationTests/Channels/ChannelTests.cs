@@ -15,24 +15,17 @@ using YouTubester.Persistence;
 namespace YouTubester.IntegrationTests.Channels;
 
 [Collection(nameof(TestCollection))]
-public sealed class ChannelTests
+public sealed class ChannelTests(TestFixture fixture)
 {
-    private readonly TestFixture fixture;
-
-    public ChannelTests(TestFixture fixture)
-    {
-        this.fixture = fixture;
-    }
-
     [Fact]
     public async Task Sync_WithDummyChannelAndMockedYouTubeData_UpdatesDatabaseCorrectly()
     {
         // Arrange
         await fixture.ResetDbAsync();
 
-        var testChannelId = "UCTestChannel123456789";
-        var testChannelName = "TestChannelName";
-        var testUploadsPlaylistId = "PLTestUploads123456789";
+        const string testChannelId = "UCTestChannel123456789";
+        const string testChannelName = "TestChannelName";
+        const string testUploadsPlaylistId = "PLTestUploads123456789";
 
         // Insert dummy channel into database
         var dummyChannel = Channel.Create(
@@ -52,7 +45,7 @@ public sealed class ChannelTests
         // Create mock video DTOs
         var mockVideos = new List<VideoDto>
         {
-            new VideoDto(
+            new(
                 "video123",
                 "Test Video 1",
                 "Test Description 1",
@@ -65,9 +58,11 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video123",
                 null
             ),
-            new VideoDto(
+            new(
                 "video456",
                 "Test Video 2",
                 "Test Description 2",
@@ -80,25 +75,27 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video456",
                 null
             )
         };
 
-        var mockPlaylistData = new List<(string Id, string? Title)>
+        var mockPlaylistData = new List<PlaylistDto>
         {
-            ("playlist123", "Test Playlist 1"),
-            ("playlist456", "Test Playlist 2")
+            new("playlist123", "Test Playlist 1", "etag-playlist123"),
+            new("playlist456", "Test Playlist 2", "etag-playlist456")
         };
 
         var mockPlaylistVideoIds = new Dictionary<string, List<string>>
         {
-            ["playlist123"] = ["video123", "video456"],
-            ["playlist456"] = ["video456"]
+            ["playlist123"] = ["video123", "video456"], ["playlist456"] = ["video456"]
         };
 
         // Setup MockYouTubeIntegration
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetAllVideosAsync(testUploadsPlaylistId, It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetAllVideosAsync(testUploadsPlaylistId, It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockVideos));
 
         fixture.ApiFactory.MockYouTubeIntegration
@@ -113,6 +110,11 @@ public sealed class ChannelTests
             .Setup(x => x.GetPlaylistVideoIdsAsync("playlist456", It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist456"]));
 
+        fixture.ApiFactory.MockYouTubeIntegration
+            .Setup(x => x.GetVideosAsync(It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockVideos.ToList().AsReadOnly());
+
         // Act
         var response = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
 
@@ -120,14 +122,14 @@ public sealed class ChannelTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var syncResult = JsonSerializer.Deserialize<ChannelSyncResult>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var syncResult = JsonSerializer.Deserialize<ChannelSyncResult>(responseContent,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         syncResult.Should().NotBeNull();
-        syncResult!.VideosInserted.Should().Be(2);
-        syncResult.PlaylistsUpserted.Should().Be(2);
+        syncResult.VideosInserted.Should().Be(2);
+        syncResult.VideosUpdated.Should().Be(0);
+        syncResult.PlaylistsInserted.Should().Be(2);
+        syncResult.PlaylistsUpdated.Should().Be(0);
         syncResult.MembershipsAdded.Should().Be(3);
 
         // Assert database state
@@ -186,7 +188,7 @@ public sealed class ChannelTests
             .FirstOrDefaultAsync(c => c.ChannelId == testChannelId);
 
         updatedChannel.Should().NotBeNull();
-        updatedChannel!.LastUploadsCutoff.Should().NotBeNull();
+        updatedChannel.LastUploadsCutoff.Should().NotBeNull();
         updatedChannel.LastUploadsCutoff.Should().Be(new DateTimeOffset(2024, 1, 2, 12, 0, 0, TimeSpan.Zero));
     }
 
@@ -196,9 +198,9 @@ public sealed class ChannelTests
         // Arrange
         await fixture.ResetDbAsync();
 
-        var testChannelId = "UCTestChannel987654321";
-        var testChannelName = "TestChannelIdempotent";
-        var testUploadsPlaylistId = "PLTestUploads987654321";
+        const string testChannelId = "UCTestChannel987654321";
+        const string testChannelName = "TestChannelIdempotent";
+        const string testUploadsPlaylistId = "PLTestUploads987654321";
 
         // Insert dummy channel into database
         var dummyChannel = Channel.Create(
@@ -218,7 +220,7 @@ public sealed class ChannelTests
         // Create mock video DTOs
         var mockVideosFirstCall = new List<VideoDto>
         {
-            new VideoDto(
+            new(
                 "video789",
                 "Original Title",
                 "Original Description",
@@ -231,13 +233,15 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video789-v1",
                 null
             )
         };
 
         var mockVideosSecondCall = new List<VideoDto>
         {
-            new VideoDto(
+            new(
                 "video789",
                 "Updated Title",
                 "Updated Description",
@@ -250,23 +254,20 @@ public sealed class ChannelTests
                 "en",
                 "en",
                 null,
+                null,
+                "etag-video789-v2",
                 null
             )
         };
 
-        var mockPlaylistData = new List<(string Id, string? Title)>
-        {
-            ("playlist789", "Test Playlist")
-        };
+        var mockPlaylistData = new List<PlaylistDto> { new("playlist789", "Test Playlist", "etag-video789-v1") };
 
-        var mockPlaylistVideoIds = new Dictionary<string, List<string>>
-        {
-            ["playlist789"] = ["video789"]
-        };
+        var mockPlaylistVideoIds = new Dictionary<string, List<string>> { ["playlist789"] = ["video789"] };
 
         // Setup MockYouTubeIntegration for first call
         fixture.ApiFactory.MockYouTubeIntegration
-            .SetupSequence(x => x.GetAllVideosAsync(testUploadsPlaylistId, It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+            .SetupSequence(x =>
+                x.GetAllVideosAsync(testUploadsPlaylistId, It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockVideosFirstCall))
             .Returns(CreateAsyncEnumerable(mockVideosSecondCall));
 
@@ -278,6 +279,12 @@ public sealed class ChannelTests
             .Setup(x => x.GetPlaylistVideoIdsAsync("playlist789", It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist789"]));
 
+        fixture.ApiFactory.MockYouTubeIntegration
+            .SetupSequence(x =>
+                x.GetVideosAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockVideosFirstCall.ToList().AsReadOnly())
+            .ReturnsAsync(mockVideosSecondCall.ToList().AsReadOnly());
+
         // Act - First call
         var firstResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
         firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -287,14 +294,13 @@ public sealed class ChannelTests
         secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var secondResponseContent = await secondResponse.Content.ReadAsStringAsync();
-        var secondSyncResult = JsonSerializer.Deserialize<ChannelSyncResult>(secondResponseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var secondSyncResult = JsonSerializer.Deserialize<ChannelSyncResult>(secondResponseContent,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         // Assert
         secondSyncResult.Should().NotBeNull();
-        secondSyncResult!.VideosUpdated.Should().BeGreaterOrEqualTo(1); // Video should be updated, not duplicated
+        secondSyncResult.VideosInserted.Should().Be(0);
+        secondSyncResult.VideosUpdated.Should().Be(1);
 
         // Verify only one video exists and it was updated
         using var verificationScope = fixture.ApiServices.CreateScope();
@@ -316,6 +322,7 @@ public sealed class ChannelTests
         {
             yield return item;
         }
+
         await Task.CompletedTask;
     }
 }

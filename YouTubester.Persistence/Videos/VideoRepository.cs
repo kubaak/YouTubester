@@ -7,21 +7,23 @@ namespace YouTubester.Persistence.Videos;
 
 public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
 {
-    public async Task<List<Video>> GetAllVideosAsync(CancellationToken cancellationToken)
+    public async Task<List<Video>> GetCommentableVideosAsync(CancellationToken cancellationToken)
     {
         return await db.Videos
             .AsNoTracking()
+            .Where(v => v.CommentsAllowed ?? true)
             .OrderByDescending(v => v.PublishedAt)
             .ThenByDescending(v => v.UpdatedAt)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> UpsertAsync(IEnumerable<Video> videos, CancellationToken cancellationToken)
+    public async Task<(int inserted, int updated)> UpsertAsync(IEnumerable<Video> videos,
+        CancellationToken cancellationToken)
     {
         var list = videos.ToList();
         if (list.Count == 0)
         {
-            return 0;
+            return (0, 0);
         }
 
         var ids = list.Select(i => i.VideoId).ToHashSet();
@@ -45,8 +47,8 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
                 var changed = row.ApplyDetails(
                     video.Title, video.Description, video.PublishedAt, video.Duration,
                     video.Visibility, video.Tags, video.CategoryId, video.DefaultLanguage,
-                    video.DefaultAudioLanguage, video.Location, video.LocationDescription, now,
-                    video.ThumbnailUrl
+                    video.DefaultAudioLanguage, video.Location, video.LocationDescription, now, video.ETag,
+                    video.CommentsAllowed
                 );
                 if (changed)
                 {
@@ -56,7 +58,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        return inserts + updates;
+        return (inserts, updates);
     }
 
     public async Task<List<Video>> GetVideosPageAsync(
@@ -84,7 +86,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         {
             var inParams = new List<string>();
             var i = 0;
-            foreach (var v in visibilities!)
+            foreach (var v in visibilities)
             {
                 var name = $"@vis{i++}";
                 inParams.Add(name);
@@ -101,7 +103,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
 
             // With Microsoft.Data.Sqlite it’s safest to pass the DateTime value EF maps to
             parameters.Add(new SqliteParameter("@afterPub", afterPublishedAtUtc.Value.UtcDateTime));
-            parameters.Add(new SqliteParameter("@afterId", afterVideoId!));
+            parameters.Add(new SqliteParameter("@afterId", afterVideoId));
         }
 
         sb.AppendLine("ORDER BY v.PublishedAt DESC, v.VideoId DESC");
@@ -115,5 +117,20 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             .FromSqlRaw(sql, parameters.ToArray())
             .AsNoTracking()
             .ToListAsync(ct);
+    }
+
+    public async Task<Dictionary<string, string?>> GetVideoETagsAsync(IEnumerable<string> videoIds,
+        CancellationToken cancellationToken)
+    {
+        var videoIdsList = videoIds.ToList();
+        if (videoIdsList.Count == 0)
+        {
+            return new Dictionary<string, string?>();
+        }
+
+        return await db.Videos
+            .AsNoTracking()
+            .Where(v => videoIdsList.Contains(v.VideoId))
+            .ToDictionaryAsync(v => v.VideoId, v => v.ETag, cancellationToken);
     }
 }

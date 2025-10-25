@@ -59,11 +59,21 @@ public partial class CommentScanWorker(
         {
             var channelId = channel.ChannelId;
 
-            foreach (var video in await videoRepository.GetAllVideosAsync(cancellationToken))
+            foreach (var video in await videoRepository.GetCommentableVideosAsync(cancellationToken))
             {
                 if (drafted >= _opt.MaxDraftsPerRun)
                 {
                     break;
+                }
+
+                //todo eliminate separate call and set the property if GetUnansweredTopLevelCommentsAsync throws an exception
+                if (video.CommentsAllowed is null)
+                {
+                    var isCommentAllowed = await yt.CheckCommentsAllowedAsync(video.VideoId, cancellationToken);
+                    if (isCommentAllowed.HasValue)
+                    {
+                        video.SetCommentsAllowed(isCommentAllowed.Value);
+                    }
                 }
 
 
