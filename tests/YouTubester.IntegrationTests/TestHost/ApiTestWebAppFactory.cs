@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
+using YouTubester.Api;
 using YouTubester.Integration;
 using YouTubester.Persistence;
 

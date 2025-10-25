@@ -317,4 +317,150 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
 
         await insert.ExecuteAsync(cancellationToken);
     }
+
+    public async IAsyncEnumerable<(string Id, string? Title)> GetPlaylistsAsync(
+        string channelId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation]
+        CancellationToken cancellationToken)
+    {
+        string? page = null;
+        do
+        {
+            var playlistRequest = youTubeService.Playlists.List("id,snippet");
+            playlistRequest.ChannelId = channelId;
+            playlistRequest.MaxResults = 50;
+            playlistRequest.PageToken = page;
+
+            var playlistResponse = await playlistRequest.ExecuteAsync(cancellationToken);
+
+            if (playlistResponse.Items is null || playlistResponse.Items.Count == 0)
+            {
+                yield break;
+            }
+
+            foreach (var playlist in playlistResponse.Items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!string.IsNullOrWhiteSpace(playlist.Id))
+                {
+                    yield return (playlist.Id, playlist.Snippet?.Title);
+                }
+            }
+
+            page = playlistResponse.NextPageToken;
+        } while (!string.IsNullOrEmpty(page));
+    }
+
+    public async IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(
+        string playlistId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation]
+        CancellationToken cancellationToken)
+    {
+        string? page = null;
+        do
+        {
+            var itemsRequest = youTubeService.PlaylistItems.List("contentDetails");
+            itemsRequest.PlaylistId = playlistId;
+            itemsRequest.MaxResults = 50;
+            itemsRequest.PageToken = page;
+
+            var itemsResponse = await itemsRequest.ExecuteAsync(cancellationToken);
+
+            if (itemsResponse.Items is null || itemsResponse.Items.Count == 0)
+            {
+                yield break;
+            }
+
+            foreach (var item in itemsResponse.Items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var videoId = item.ContentDetails?.VideoId;
+                if (!string.IsNullOrWhiteSpace(videoId))
+                {
+                    yield return videoId;
+                }
+            }
+
+            page = itemsResponse.NextPageToken;
+        } while (!string.IsNullOrEmpty(page));
+    }
+
+    public async IAsyncEnumerable<string> GetVideoIdsNewerThanAsync(
+        string channelId,
+        DateTimeOffset? cutoff,
+        [System.Runtime.CompilerServices.EnumeratorCancellation]
+        CancellationToken cancellationToken)
+    {
+        // Get the uploads playlist ID for the channel
+        var channelRequest = youTubeService.Channels.List("contentDetails");
+        channelRequest.Id = channelId;
+
+        var channelResponse = await channelRequest.ExecuteAsync(cancellationToken);
+        if (channelResponse.Items is null || channelResponse.Items.Count == 0)
+        {
+            yield break;
+        }
+
+        var uploadsPlaylistId = channelResponse.Items[0].ContentDetails?.RelatedPlaylists?.Uploads;
+        if (string.IsNullOrWhiteSpace(uploadsPlaylistId))
+        {
+            yield break;
+        }
+
+        // Enumerate uploads playlist items
+        string? page = null;
+        do
+        {
+            var playlistRequest = youTubeService.PlaylistItems.List("contentDetails,snippet");
+            playlistRequest.PlaylistId = uploadsPlaylistId;
+            playlistRequest.MaxResults = 50;
+            playlistRequest.PageToken = page;
+
+            var playlistResponse = await playlistRequest.ExecuteAsync(cancellationToken);
+            if (playlistResponse.Items is null || playlistResponse.Items.Count == 0)
+            {
+                yield break;
+            }
+
+            // Early stop per page if cutoff is specified
+            if (cutoff.HasValue)
+            {
+                var firstItem = playlistResponse.Items.First();
+                var newest = firstItem.ContentDetails?.VideoPublishedAtDateTimeOffset ??
+                             firstItem.Snippet?.PublishedAtDateTimeOffset;
+                if (newest.HasValue && newest.Value <= cutoff.Value)
+                {
+                    yield break;
+                }
+            }
+
+            foreach (var item in playlistResponse.Items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var videoId = item.ContentDetails?.VideoId;
+                if (string.IsNullOrWhiteSpace(videoId))
+                {
+                    continue;
+                }
+
+                // Check cutoff within page
+                if (cutoff.HasValue)
+                {
+                    var publishedAt = item.ContentDetails?.VideoPublishedAtDateTimeOffset ??
+                                      item.Snippet?.PublishedAtDateTimeOffset;
+                    if (publishedAt.HasValue && publishedAt.Value <= cutoff.Value)
+                    {
+                        yield break;
+                    }
+                }
+
+                yield return videoId;
+            }
+
+            page = playlistResponse.NextPageToken;
+        } while (!string.IsNullOrEmpty(page));
+    }
 }
