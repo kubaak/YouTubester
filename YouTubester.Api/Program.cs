@@ -1,6 +1,6 @@
-using System.Reflection;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using YouTubester.Api.Extensions;
 using YouTubester.Api.Infrastructure;
 using YouTubester.Application;
 using YouTubester.Application.Channels;
@@ -15,15 +15,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath))
-    {
-        options.IncludeXmlComments(xmlPath);
-    }
-});
+builder.Services.AddSwagger();
+
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
@@ -35,8 +28,8 @@ builder.Services.AddScoped<IReplyService, ReplyService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddScoped<IChannelSyncService, ChannelSyncService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
-
 builder.Services.AddVideoListingOptions(builder.Configuration);
+builder.Services.AddCookieWithGoogle(builder.Configuration);
 
 var rootPath = builder.Environment.ContentRootPath;
 builder.Services.AddDatabase(rootPath);
@@ -44,14 +37,21 @@ builder.Services.AddHangFireStorage(builder.Configuration, rootPath);
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+
 var app = builder.Build();
+
 app.UseExceptionHandler();
+app.UseHttpsRedirection();
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
     app.UseHangfireDashboard();
+
     var cfg = app.Services.GetRequiredService<IConfiguration>();
     if (cfg.GetValue<bool>("Seed:Enable"))
     {
@@ -63,14 +63,13 @@ if (app.Environment.IsDevelopment())
     }
 }
 
-app.UseHttpsRedirection();
 app.MapControllers();
 app.Run();
 
-// Make Program class accessible for integration testing
 namespace YouTubester.Api
 {
-    public class Program
-    {
-    }
+    /// <summary>
+    /// Make Program class accessible for integration testing
+    /// </summary>
+    public class Program;
 }
