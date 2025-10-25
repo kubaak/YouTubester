@@ -25,10 +25,12 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<AiOptions>(configuration.GetSection("AI"));
         services.AddHttpClient<IAiClient, AiClient>((sp, http) =>
-        {
-            var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
-            http.BaseAddress = new Uri(ai.Endpoint);
-        });
+            {
+                var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
+                http.BaseAddress = new Uri(ai.Endpoint);
+            })
+            .AddStandardResilienceHandler();
+
         return services;
     }
 }

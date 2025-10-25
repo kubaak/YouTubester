@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using YouTubester.Application.Common;
 using YouTubester.Domain;
@@ -18,185 +17,211 @@ public sealed class ChannelSyncService(
 {
     private const int VideoBatchSize = 100;
 
-    public async Task<ChannelSyncResult> SyncAsync(string channelId, CancellationToken cancellationToken)
+    public async Task<ChannelSyncResult> SyncByNameAsync(string channelName, CancellationToken ct)
     {
-        logger.LogInformation("Starting playlist sync for channel {ChannelId}", channelId);
+        var channel = await channelRepository.GetChannelByNameAsync(channelName, ct) ??
+                      throw new NotFoundException($"Channel '{channelName}' not found.");
 
-        // 1) Validate channel exists and get uploads playlist ID
-        var channel = await channelRepository.GetChannelAsync(channelId, cancellationToken);
-        if (channel == null)
-        {
-            logger.LogError("Channel {ChannelId} not found", channelId);
-            throw new InvalidOperationException($"Channel {channelId} not found");
-        }
+        var now = DateTimeOffset.UtcNow;
+        return await SyncInternalAsync(channel, now, ct);
+    }
 
-        if (string.IsNullOrWhiteSpace(channel.UploadsPlaylistId))
-        {
-            logger.LogError("Channel {ChannelId} has no uploads playlist ID", channelId);
-            throw new InvalidOperationException($"Channel {channelId} has no uploads playlist ID");
-        }
+    private async Task<ChannelSyncResult> SyncInternalAsync(Channel channel, DateTimeOffset now, CancellationToken ct)
+    {
+        logger.LogInformation("Starting playlist sync for channel {ChannelId}", channel.ChannelId);
 
-        // 2) Strategy A: Delta sync for all videos (via Uploads playlist)
-        logger.LogInformation("Executing uploads delta sync for channel {ChannelId}", channelId);
-        var (videosInserted, videosUpdated) = await SyncUploadsAsync(channelId, channel.UploadsPlaylistId, cancellationToken);
+        var (videosInserted, videosUpdated) = await SyncUploadsAsync(channel, now, ct);
 
-        // 3) Strategy B: Delta sync for playlist membership
-        logger.LogInformation("Executing playlist membership sync for channel {ChannelId}", channelId);
-        var (playlistsUpserted, membershipsAdded, membershipsRemoved) = await SyncPlaylistMembershipsAsync(channelId, cancellationToken);
+        var (playlistsInserted, playlistsUpdated, membershipsAdded, membershipsRemoved) =
+            await SyncPlaylistMembershipsAsync(channel, now, ct);
 
-        var result = new ChannelSyncResult(videosInserted, videosUpdated, playlistsUpserted, membershipsAdded, membershipsRemoved);
+        var result = new ChannelSyncResult(videosInserted, videosUpdated, playlistsInserted,
+            playlistsUpdated, membershipsAdded, membershipsRemoved);
 
-        logger.LogInformation("Playlist sync completed for channel {ChannelId}. Videos: {VideosInserted} inserted, {VideosUpdated} updated. Playlists: {PlaylistsUpserted} upserted. Memberships: {MembershipsAdded} added, {MembershipsRemoved} removed",
-            channelId, result.VideosInserted, result.VideosUpdated, result.PlaylistsUpserted, result.MembershipsAdded, result.MembershipsRemoved);
+        logger.LogInformation(
+            "Playlist sync completed for channel {ChannelId}. Videos: {Ins} inserted, Videos: {Upd} updated." +
+            "Playlists: {PlIns} inserted, Playlists: {PlUp} updated. Memberships: {Add} added, {Rem} removed",
+            channel.ChannelId, result.VideosInserted, result.VideosUpdated, result.PlaylistsInserted,
+            result.PlaylistsUpdated, result.MembershipsAdded, result.MembershipsRemoved);
 
         return result;
     }
 
-    private async Task<(int VideosInserted, int VideosUpdated)> SyncUploadsAsync(string channelId, string uploadsPlaylistId, CancellationToken cancellationToken)
+    private async Task<(int videosInserted, int videosUpdated)> SyncUploadsAsync(Channel channel,
+        DateTimeOffset now, CancellationToken cancellationToken)
     {
-        // Read current cutoff
-        var channel = await channelRepository.GetChannelAsync(channelId, cancellationToken);
-        var cutoff = channel?.LastUploadsCutoff;
+        var channelId = channel.ChannelId;
+        var uploadsPlaylistId = channel.UploadsPlaylistId;
+        var cutoff = channel.LastUploadsCutoff;
 
-        logger.LogDebug("Using uploads cutoff: {Cutoff} for channel {ChannelId}", cutoff, channelId);
+        logger.LogInformation("Executing uploads delta sync for channel {ChannelId} (cutoff: {Cutoff})", channelId,
+            cutoff);
 
-        var cachedAt = DateTimeOffset.UtcNow;
         var totalVideosInserted = 0;
         var totalVideosUpdated = 0;
-        var batch = new ConcurrentDictionary<string, Video>();
-        var maxPublishedAt = DateTimeOffset.MinValue;
-        var processedAnyVideos = false;
+        var batch = new List<Video>(VideoBatchSize);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var maxPublishedAt = cutoff ?? DateTimeOffset.MinValue;
+        var processedAny = false;
 
-        await foreach (var videoDto in youTubeIntegration.GetAllVideosAsync(uploadsPlaylistId, cutoff, cancellationToken))
+        await foreach (var videoDto in youTubeIntegration.GetAllVideosAsync(uploadsPlaylistId, cutoff,
+                           cancellationToken))
         {
-            // We already have this video (race condition)
-            if (batch.ContainsKey(videoDto.VideoId))
+            if (!seen.Add(videoDto.VideoId))
             {
                 continue;
             }
 
-            processedAnyVideos = true;
-
-            // Track maximum published date for cutoff update
+            processedAny = true;
             if (videoDto.PublishedAt > maxPublishedAt)
             {
                 maxPublishedAt = videoDto.PublishedAt;
             }
 
-            var visibility = VideoVisibilityMapper.MapVisibility(videoDto.PrivacyStatus, videoDto.PublishedAt, DateTimeOffset.UtcNow);
-            var video = Video.Create(
-                uploadsPlaylistId,
-                videoDto.VideoId,
-                videoDto.Title,
-                videoDto.Description,
-                videoDto.PublishedAt,
-                videoDto.Duration,
-                visibility,
-                videoDto.Tags,
-                videoDto.CategoryId,
-                videoDto.DefaultLanguage,
-                videoDto.DefaultAudioLanguage,
-                videoDto.Location.HasValue
+            var visibility =
+                VideoVisibilityMapper.MapVisibility(videoDto.PrivacyStatus, videoDto.PublishedAt,
+                    now);
+
+            batch.Add(Video.Create(
+                uploadsPlaylistId, videoDto.VideoId, videoDto.Title, videoDto.Description,
+                videoDto.PublishedAt, videoDto.Duration, visibility, videoDto.Tags,
+                videoDto.CategoryId, videoDto.DefaultLanguage, videoDto.DefaultAudioLanguage, videoDto.Location.HasValue
                     ? new GeoLocation(videoDto.Location.Value.lat, videoDto.Location.Value.lng)
                     : null,
-                videoDto.LocationDescription,
-                cachedAt
-            );
+                videoDto.LocationDescription, now, videoDto.ETag
+            ));
 
-            batch.TryAdd(videoDto.VideoId, video);
-
-            // Flush in batches to keep memory/transactions modest
-            if (batch.Count >= VideoBatchSize)
+            if (batch.Count < VideoBatchSize)
             {
-                var changedCount = await videoRepository.UpsertAsync(batch.Select(b => b.Value), cancellationToken);
-                totalVideosInserted += changedCount; // Repository returns total changed, approximation for now
-                batch.Clear();
+                continue;
             }
+
+            var (inserted, changed) = await videoRepository.UpsertAsync(batch, cancellationToken);
+            totalVideosUpdated += changed;
+            totalVideosInserted += inserted;
+            batch.Clear();
         }
 
-        // Flush remaining batch
         if (batch.Count > 0)
         {
-            var changedCount = await videoRepository.UpsertAsync(batch.Select(b => b.Value), cancellationToken);
-            totalVideosUpdated += changedCount;
+            var (inserted, changed) = await videoRepository.UpsertAsync(batch, cancellationToken);
+            totalVideosUpdated += changed;
+            totalVideosInserted += inserted;
         }
 
-        // Update cutoff if we processed any videos
-        if (processedAnyVideos && maxPublishedAt > DateTimeOffset.MinValue)
+        if (!processedAny || (cutoff.HasValue && maxPublishedAt <= cutoff.Value))
         {
-            await channelRepository.SetUploadsCutoffAsync(channelId, maxPublishedAt, cancellationToken);
-            logger.LogDebug("Updated uploads cutoff to {Cutoff} for channel {ChannelId}", maxPublishedAt, channelId);
+            return (totalVideosInserted, totalVideosUpdated);
         }
+
+        await channelRepository.SetUploadsCutoffAsync(channelId, maxPublishedAt, cancellationToken);
+        logger.LogDebug("Updated uploads cutoff to {Cutoff} for channel {ChannelId}", maxPublishedAt, channelId);
 
         return (totalVideosInserted, totalVideosUpdated);
     }
 
-    private async Task<(int PlaylistsUpserted, int MembershipsAdded, int MembershipsRemoved)> SyncPlaylistMembershipsAsync(string channelId, CancellationToken cancellationToken)
+    private async Task<(int PlaylistsInserted, int PlaylistsUpdated, int MembershipsAdded, int MembershipsRemoved)>
+        SyncPlaylistMembershipsAsync(Channel channel, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var currentTime = DateTimeOffset.UtcNow;
-        var totalPlaylistsUpserted = 0;
+        var channelId = channel.ChannelId;
         var totalMembershipsAdded = 0;
         var totalMembershipsRemoved = 0;
 
-        // Fetch remote playlists
-        var remotePlaylistsList = new List<Playlist>();
-        await foreach (var (playlistId, title) in youTubeIntegration.GetPlaylistsAsync(channelId, cancellationToken))
+        var playlistDtos = youTubeIntegration.GetPlaylistsAsync(channelId, cancellationToken);
+        var remotePlaylists = new List<Playlist>();
+        await foreach (var dto in playlistDtos)
         {
-            var playlist = Playlist.Create(playlistId, channelId, title, currentTime);
-            remotePlaylistsList.Add(playlist);
-        }
-
-        logger.LogDebug("Found {PlaylistCount} remote playlists for channel {ChannelId}", remotePlaylistsList.Count, channelId);
-
-        if (remotePlaylistsList.Count > 0)
-        {
-            // Upsert playlists into DB
-            totalPlaylistsUpserted = await playlistRepository.UpsertAsync(remotePlaylistsList, cancellationToken);
-            logger.LogDebug("Upserted {PlaylistsUpserted} playlists for channel {ChannelId}", totalPlaylistsUpserted, channelId);
-
-            // For each playlist, sync memberships
-            foreach (var playlist in remotePlaylistsList)
+            if (!string.IsNullOrWhiteSpace(dto.Id))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                logger.LogDebug("Syncing memberships for playlist {PlaylistId} ({Title})", playlist.PlaylistId, playlist.Title);
-
-                // Fetch remote membership video IDs
-                var remoteVideoIds = new HashSet<string>(StringComparer.Ordinal);
-                await foreach (var videoId in youTubeIntegration.GetPlaylistVideoIdsAsync(playlist.PlaylistId, cancellationToken))
-                {
-                    remoteVideoIds.Add(videoId);
-                }
-
-                // Get local membership
-                var localVideoIds = await playlistRepository.GetMembershipVideoIdsAsync(playlist.PlaylistId, cancellationToken);
-
-                // Compute differences
-                var toAdd = remoteVideoIds.Except(localVideoIds).ToList();
-                var toRemove = localVideoIds.Except(remoteVideoIds).ToList();
-
-                logger.LogDebug("Playlist {PlaylistId}: {ToAddCount} to add, {ToRemoveCount} to remove",
-                    playlist.PlaylistId, toAdd.Count, toRemove.Count);
-
-                // Add memberships (repository ensures FK safety)
-                if (toAdd.Count > 0)
-                {
-                    var addedCount = await playlistRepository.AddMembershipsAsync(playlist.PlaylistId, toAdd, cancellationToken);
-                    totalMembershipsAdded += addedCount;
-                }
-
-                // Remove memberships
-                if (toRemove.Count > 0)
-                {
-                    var removedCount = await playlistRepository.RemoveMembershipsAsync(playlist.PlaylistId, toRemove, cancellationToken);
-                    totalMembershipsRemoved += removedCount;
-                }
-
-                // Update last membership sync timestamp
-                await playlistRepository.UpdateLastMembershipSyncAtAsync(playlist.PlaylistId, currentTime, cancellationToken);
+                remotePlaylists.Add(Playlist.Create(dto.Id, channelId, dto.Title, now, dto.ETag));
             }
         }
 
-        return (totalPlaylistsUpserted, totalMembershipsAdded, totalMembershipsRemoved);
+        if (remotePlaylists.Count == 0)
+        {
+            return (0, 0, 0, 0);
+        }
+
+        var (totalPlaylistsInserted, totalPlaylistsUpdated) =
+            await playlistRepository.UpsertAsync(remotePlaylists, cancellationToken);
+
+        foreach (var playlist in remotePlaylists)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var remoteVideoIds = new HashSet<string>(StringComparer.Ordinal);
+            await foreach (var videoId in youTubeIntegration.GetPlaylistVideoIdsAsync(playlist.PlaylistId,
+                               cancellationToken))
+            {
+                remoteVideoIds.Add(videoId);
+            }
+
+            var localVideoIds =
+                await playlistRepository.GetMembershipVideoIdsAsync(playlist.PlaylistId, cancellationToken);
+
+            var toAdd = remoteVideoIds.Except(localVideoIds).ToList();
+            var toRemove = localVideoIds.Except(remoteVideoIds).ToList();
+
+            if (toAdd.Count > 0)
+            {
+                var existing = await videoRepository.GetVideoETagsAsync(toAdd, cancellationToken);
+                //the videos that were not imported in SyncUploadsAsync
+                var unknown = toAdd.Where(id => !existing.ContainsKey(id)).ToList();
+
+                if (unknown.Count > 0)
+                {
+                    const int batchSize = 50;
+                    for (var i = 0; i < unknown.Count; i += batchSize)
+                    {
+                        var slice = unknown.Skip(i).Take(batchSize);
+                        var dtos = await youTubeIntegration.GetVideosAsync(slice, cancellationToken);
+
+                        var upserts = new List<Video>();
+                        foreach (var dto in dtos)
+                        {
+                            var visibility = VideoVisibilityMapper.MapVisibility(dto.PrivacyStatus, dto.PublishedAt,
+                                now);
+                            upserts.Add(Video.Create(
+                                channel.UploadsPlaylistId,
+                                dto.VideoId,
+                                dto.Title,
+                                dto.Description,
+                                dto.PublishedAt,
+                                dto.Duration,
+                                visibility,
+                                dto.Tags,
+                                dto.CategoryId,
+                                dto.DefaultLanguage,
+                                dto.DefaultAudioLanguage,
+                                dto.Location.HasValue
+                                    ? new GeoLocation(dto.Location.Value.lat, dto.Location.Value.lng)
+                                    : null,
+                                dto.LocationDescription,
+                                now,
+                                dto.ETag
+                            ));
+                        }
+
+                        if (upserts.Count > 0)
+                        {
+                            await videoRepository.UpsertAsync(upserts, cancellationToken);
+                        }
+                    }
+                }
+
+                totalMembershipsAdded +=
+                    await playlistRepository.AddMembershipsAsync(playlist.PlaylistId, toAdd, cancellationToken);
+            }
+
+            if (toRemove.Count > 0)
+            {
+                totalMembershipsRemoved +=
+                    await playlistRepository.RemoveMembershipsAsync(playlist.PlaylistId, toRemove, cancellationToken);
+            }
+
+            await playlistRepository.UpdateLastMembershipSyncAtAsync(playlist.PlaylistId, now, cancellationToken);
+        }
+
+        return (totalPlaylistsInserted, totalPlaylistsUpdated, totalMembershipsAdded, totalMembershipsRemoved);
     }
 }

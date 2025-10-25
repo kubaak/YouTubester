@@ -21,11 +21,13 @@ public interface IYouTubeIntegration
     Task<IReadOnlyList<string>> GetPlaylistsContainingAsync(string videoId, CancellationToken cancellationToken);
     Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken);
 
-    IAsyncEnumerable<(string Id, string? Title)> GetPlaylistsAsync(string channelId,
+    IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(string channelId,
         CancellationToken cancellationToken);
 
     IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(string playlistId, CancellationToken cancellationToken);
 
-    IAsyncEnumerable<string> GetVideoIdsNewerThanAsync(string channelId, DateTimeOffset? cutoff,
+    Task<bool?> CheckCommentsAllowedAsync(string videoId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<VideoDto>> GetVideosAsync(IEnumerable<string> videoIds,
         CancellationToken cancellationToken);
 }

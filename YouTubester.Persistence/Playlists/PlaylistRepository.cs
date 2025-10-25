@@ -20,12 +20,13 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
             .FirstOrDefaultAsync(p => p.PlaylistId == playlistId, cancellationToken);
     }
 
-    public async Task<int> UpsertAsync(IEnumerable<Playlist> playlists, CancellationToken cancellationToken)
+    public async Task<(int inserted, int updated)> UpsertAsync(IEnumerable<Playlist> playlists,
+        CancellationToken cancellationToken)
     {
         var playlistList = playlists.ToList();
         if (playlistList.Count == 0)
         {
-            return 0;
+            return (0, 0);
         }
 
         var playlistIds = playlistList.Select(p => p.PlaylistId).ToHashSet();
@@ -47,16 +48,17 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
             }
             else
             {
-                existingPlaylist.UpdateTitle(playlist.Title, currentTime);
+                existingPlaylist.UpdateTitle(playlist.Title, currentTime, playlist.ETag);
                 updatedCount++;
             }
         }
 
         await databaseContext.SaveChangesAsync(cancellationToken);
-        return insertedCount + updatedCount;
+        return (insertedCount, updatedCount);
     }
 
-    public async Task<HashSet<string>> GetMembershipVideoIdsAsync(string playlistId, CancellationToken cancellationToken)
+    public async Task<HashSet<string>> GetMembershipVideoIdsAsync(string playlistId,
+        CancellationToken cancellationToken)
     {
         var videoIds = await databaseContext.VideoPlaylists
             .AsNoTracking()
@@ -67,7 +69,8 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
         return videoIds.ToHashSet(StringComparer.Ordinal);
     }
 
-    public async Task<int> AddMembershipsAsync(string playlistId, IEnumerable<string> videoIds, CancellationToken cancellationToken)
+    public async Task<int> AddMembershipsAsync(string playlistId, IEnumerable<string> videoIds,
+        CancellationToken cancellationToken)
     {
         var candidateVideoIds = videoIds.ToHashSet(StringComparer.Ordinal);
         if (candidateVideoIds.Count == 0)
@@ -119,7 +122,8 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
         return addedCount;
     }
 
-    public async Task<int> RemoveMembershipsAsync(string playlistId, IEnumerable<string> videoIds, CancellationToken cancellationToken)
+    public async Task<int> RemoveMembershipsAsync(string playlistId, IEnumerable<string> videoIds,
+        CancellationToken cancellationToken)
     {
         var videoIdsToRemove = videoIds.ToHashSet(StringComparer.Ordinal);
         if (videoIdsToRemove.Count == 0)
@@ -141,7 +145,8 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
         return membershipsToRemove.Count;
     }
 
-    public async Task UpdateLastMembershipSyncAtAsync(string playlistId, DateTimeOffset syncedAt, CancellationToken cancellationToken)
+    public async Task UpdateLastMembershipSyncAtAsync(string playlistId, DateTimeOffset syncedAt,
+        CancellationToken cancellationToken)
     {
         var playlist = await databaseContext.Playlists
             .FirstOrDefaultAsync(p => p.PlaylistId == playlistId, cancellationToken);
@@ -151,5 +156,20 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
             playlist.SetLastMembershipSyncAt(syncedAt);
             await databaseContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    public async Task<Dictionary<string, string?>> GetPlaylistETagsAsync(IEnumerable<string> playlistIds,
+        CancellationToken cancellationToken)
+    {
+        var playlistIdsList = playlistIds.ToList();
+        if (playlistIdsList.Count == 0)
+        {
+            return new Dictionary<string, string?>();
+        }
+
+        return await databaseContext.Playlists
+            .AsNoTracking()
+            .Where(p => playlistIdsList.Contains(p.PlaylistId))
+            .ToDictionaryAsync(p => p.PlaylistId, p => p.ETag, cancellationToken);
     }
 }

@@ -4,25 +4,19 @@ using YouTubester.Persistence.Channels;
 
 namespace YouTubester.Api;
 
+/// <summary>Channels</summary>
 [ApiController]
 [Route("api/channels")]
 [Tags("Channels")]
-public sealed class ChannelController(
-    IChannelSyncService channelSyncService,
-    IChannelRepository channelRepository
-) : ControllerBase
+public sealed class ChannelController(IChannelSyncService channelSyncService) : ControllerBase
 {
+    /// <summary>Runs full sync for a channel by name.</summary>
     [HttpPost("sync/{channelName}")]
     [ProducesResponseType(typeof(ChannelSyncResult), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ChannelSyncResult>> Sync([FromRoute] string channelName, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ChannelSyncResult>> SyncAsync([FromRoute] string channelName, CancellationToken ct)
     {
-        var channel = await channelRepository.GetChannelByNameAsync(channelName, ct);
-        if (channel is null)
-        {
-            return NotFound(new { message = $"Channel '{channelName}' not found." });
-        }
-
-        var result = await channelSyncService.SyncAsync(channel.ChannelId, ct);
+        var result = await channelSyncService.SyncByNameAsync(channelName, ct); // service loads the channel ONCE
         return Ok(result);
     }
 }

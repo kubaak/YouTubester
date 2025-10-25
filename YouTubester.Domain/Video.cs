@@ -25,6 +25,8 @@ public sealed class Video
     public string? DefaultAudioLanguage { get; private set; }
     public GeoLocation? Location { get; private set; }
     public string? LocationDescription { get; private set; }
+    public string? ETag { get; private set; }
+    public bool? CommentsAllowed { get; private set; }
     public DateTimeOffset CachedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public bool IsShort => Duration <= TimeSpan.FromSeconds(60);
@@ -46,7 +48,9 @@ public sealed class Video
         string? defaultAudioLanguage,
         GeoLocation? location,
         string? locationDescription,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        string? etag = null,
+        bool? commentsAllowed = null)
     {
         return new Video
         {
@@ -63,6 +67,8 @@ public sealed class Video
             DefaultAudioLanguage = defaultAudioLanguage,
             Location = location,
             LocationDescription = locationDescription,
+            ETag = etag,
+            CommentsAllowed = commentsAllowed,
             CachedAt = nowUtc,
             UpdatedAt = nowUtc
         };
@@ -81,8 +87,34 @@ public sealed class Video
         GeoLocation? location,
         string? locationDescription,
         DateTimeOffset nowUtc,
-        string? thumbnailUrl)
+        string? etag,
+        bool? commentsAllowed = null)
     {
+        // ---------- ETag fast-path ----------
+        // If caller fetched with the same `part` set and the ETag is unchanged,
+        // the video metadata we care about hasn't changed.
+        if (!string.IsNullOrEmpty(etag) && StringComparer.Ordinal.Equals(ETag, etag))
+        {
+            var dirtyFast = false;
+
+            // We still allow updates to CommentsAllowed (since you may probe it separately),
+            // without touching other fields.
+            if (CommentsAllowed != commentsAllowed)
+            {
+                CommentsAllowed = commentsAllowed;
+                dirtyFast = true;
+            }
+
+            CachedAt = nowUtc;
+            if (dirtyFast)
+            {
+                UpdatedAt = nowUtc;
+            }
+
+            return dirtyFast;
+        }
+
+        // ---------- Full field-by-field comparison ----------
         var dirty = false;
 
         if (!StringComparer.Ordinal.Equals(Title, title))
@@ -118,7 +150,6 @@ public sealed class Video
         if (tags is not null)
         {
             var newTags = tags.ToArray();
-
             if (!Tags.SequenceEqual(newTags, StringComparer.Ordinal))
             {
                 Tags = newTags;
@@ -156,12 +187,30 @@ public sealed class Video
             dirty = true;
         }
 
+        if (!StringComparer.Ordinal.Equals(ETag, etag))
+        {
+            ETag = etag;
+            dirty = true;
+        }
+
+        if (CommentsAllowed != commentsAllowed)
+        {
+            CommentsAllowed = commentsAllowed;
+            dirty = true;
+        }
+
+        CachedAt = nowUtc;
         if (dirty)
         {
             UpdatedAt = nowUtc;
         }
 
         return dirty;
+    }
+
+    public void SetCommentsAllowed(bool commentsAllowed)
+    {
+        CommentsAllowed = commentsAllowed;
     }
 
     private Video()

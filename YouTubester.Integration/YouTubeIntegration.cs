@@ -1,10 +1,12 @@
 ﻿using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
+using Microsoft.Extensions.Logging;
 using YouTubester.Integration.Dtos;
 
 namespace YouTubester.Integration;
 
-public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTubeIntegration
+public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<YouTubeIntegration> logger)
+    : IYouTubeIntegration
 {
     public async IAsyncEnumerable<VideoDto> GetAllVideosAsync(
         string uploadsPlaylistId,
@@ -115,12 +117,115 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
                     video.Id, title, description, tags, duration, privacyStatus,
                     duration <= TimeSpan.FromSeconds(60), metaPublishedAt ?? DateTimeOffset.MinValue,
                     video.Snippet?.CategoryId, video.Snippet?.DefaultLanguage, video.Snippet?.DefaultAudioLanguage,
-                    location, video.RecordingDetails?.LocationDescription
+                    location, video.RecordingDetails?.LocationDescription,
+                    video.ETag, null // CommentsAllowed will be determined separately
                 );
             }
 
             page = playlistResponse.NextPageToken;
         } while (!string.IsNullOrEmpty(page));
+    }
+
+    public async Task<bool?> CheckCommentsAllowedAsync(string videoId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // First check if video is made for kids (short-circuit)
+            var videoRequest = youTubeService.Videos.List("status");
+            videoRequest.Id = videoId;
+            var videoResponse = await videoRequest.ExecuteAsync(cancellationToken);
+            var video = videoResponse.Items?.FirstOrDefault();
+
+            if (video?.Status != null)
+            {
+                if (video.Status.MadeForKids == true || video.Status.SelfDeclaredMadeForKids == true)
+                {
+                    return false; // Comments disabled for kids content
+                }
+            }
+
+            // Check comments by attempting to list them
+            var commentsRequest = youTubeService.CommentThreads.List("id");
+            commentsRequest.VideoId = videoId;
+            commentsRequest.MaxResults = 1;
+
+            await commentsRequest.ExecuteAsync(cancellationToken);
+            return true; // Comments allowed if request succeeds
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            // Check if the error is specifically about comments being disabled
+            if (ex.HttpStatusCode == System.Net.HttpStatusCode.Forbidden &&
+                ex.Error?.Errors?.Any(e => e.Reason == "commentsDisabled") == true)
+            {
+                return false;
+            }
+
+            logger.LogWarning(ex, "GoogleApiException Checking comments allowed for video {VideoId}", videoId);
+            // For other errors, return null to indicate unknown status
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Checking comments allowed for video {VideoId}", videoId);
+            // For any other exceptions, return null to indicate unknown status
+            return null;
+        }
+    }
+
+    public async Task<IReadOnlyList<VideoDto>> GetVideosAsync(IEnumerable<string> videoIds,
+        CancellationToken cancellationToken)
+    {
+        var videoIdsList = videoIds.ToList();
+        if (videoIdsList.Count == 0)
+        {
+            return Array.Empty<VideoDto>();
+        }
+
+        var videoRequest = youTubeService.Videos.List("snippet,contentDetails,status,recordingDetails");
+        videoRequest.Id = string.Join(",", videoIdsList);
+
+        var videoResponse = await videoRequest.ExecuteAsync(cancellationToken);
+        var result = new List<VideoDto>();
+
+        foreach (var video in videoResponse.Items)
+        {
+            if (string.IsNullOrWhiteSpace(video.Id))
+            {
+                continue;
+            }
+
+            var title = video.Snippet?.Title ?? string.Empty;
+            var description = video.Snippet?.Description ?? string.Empty;
+            var tags = video.Snippet?.Tags?.Where(t => !string.IsNullOrWhiteSpace(t));
+            var iso = video.ContentDetails?.Duration ?? "PT0S";
+            var duration = System.Xml.XmlConvert.ToTimeSpan(iso);
+            var privacy = video.Status?.PrivacyStatus ?? "private";
+            var publishAt = video.Status?.PublishAtDateTimeOffset;
+            var isScheduled = string.Equals(privacy, "private", StringComparison.OrdinalIgnoreCase)
+                              && publishAt.HasValue
+                              && publishAt.Value > DateTimeOffset.UtcNow;
+            var privacyStatus = isScheduled ? "scheduled" : privacy;
+            var geoPoint = video.RecordingDetails?.Location;
+            var latitude = geoPoint?.Latitude;
+            var longitude = geoPoint?.Longitude;
+            ValueTuple<double, double>? location = null;
+            if (latitude is not null && longitude is not null)
+            {
+                location = new ValueTuple<double, double>(latitude.Value, longitude.Value);
+            }
+
+            result.Add(new VideoDto(
+                video.Id, title, description, tags, duration, privacyStatus,
+                duration <= TimeSpan.FromSeconds(60),
+                video.Snippet?.PublishedAtDateTimeOffset ?? DateTimeOffset.MinValue,
+                video.Snippet?.CategoryId, video.Snippet?.DefaultLanguage, video.Snippet?.DefaultAudioLanguage,
+                location, video.RecordingDetails?.LocationDescription,
+                video.ETag, null // CommentsAllowed determined during comment scanning
+            ));
+        }
+
+        return result;
     }
 
     public async IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
@@ -232,8 +337,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
         {
             video.RecordingDetails.Location = new GeoPoint
             {
-                Latitude = location.Value.lat,
-                Longitude = location.Value.lng
+                Latitude = location.Value.lat, Longitude = location.Value.lng
             };
             video.RecordingDetails.LocationDescription = locationDescription;
         }
@@ -318,7 +422,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
         await insert.ExecuteAsync(cancellationToken);
     }
 
-    public async IAsyncEnumerable<(string Id, string? Title)> GetPlaylistsAsync(
+    public async IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(
         string channelId,
         [System.Runtime.CompilerServices.EnumeratorCancellation]
         CancellationToken cancellationToken)
@@ -344,7 +448,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
 
                 if (!string.IsNullOrWhiteSpace(playlist.Id))
                 {
-                    yield return (playlist.Id, playlist.Snippet?.Title);
+                    yield return new PlaylistDto(playlist.Id!, playlist.Snippet.Title, playlist.Snippet.ETag);
                 }
             }
 

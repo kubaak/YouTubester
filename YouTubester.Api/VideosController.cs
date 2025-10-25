@@ -10,13 +10,17 @@ using YouTubester.Persistence.Channels;
 
 namespace YouTubester.Api;
 
+/// <summary>
+/// 
+/// </summary>
+/// <param name="jobClient"></param>
+/// <param name="service"></param>
 [ApiController]
 [Route("api/videos")]
 [Tags("Videos")]
 public sealed class VideosController(
     IBackgroundJobClient jobClient,
-    IVideoService service,
-    IChannelRepository channelRepository
+    IVideoService service
 ) : ControllerBase
 {
     [HttpPost("copy-template")]
@@ -25,20 +29,6 @@ public sealed class VideosController(
     {
         var res = jobClient.Enqueue<CopyVideoTemplateJob>(j => j.Run(request, JobCancellationToken.Null));
         return Ok(res);
-    }
-
-    [HttpPost("sync/{channelName}")]
-    [ProducesResponseType(typeof(SyncVideosResult), StatusCodes.Status200OK)]
-    public async Task<ActionResult<SyncVideosResult>> Sync([FromRoute] string channelName, CancellationToken ct)
-    {
-        var channel = await channelRepository.GetChannelByNameAsync(channelName, ct);
-        if (channel is null)
-        {
-            return NotFound(new { message = $"Channel '{channelName}' not found." });
-        }
-
-        var result = await service.SyncChannelVideosAsync(channel.UploadsPlaylistId, ct);
-        return Ok(result);
     }
 
     /// <summary>
@@ -52,6 +42,7 @@ public sealed class VideosController(
     /// </param>
     /// <param name="pageSize">Items per page (1–100, default 30).</param>
     /// <param name="pageToken">Cursor token for pagination, or <c>null</c> for first page.</param>
+    /// <param name="ct"></param>
     /// <returns>Paginated list of videos and next-page token if available.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<VideoListItemDto>), StatusCodes.Status200OK)]
