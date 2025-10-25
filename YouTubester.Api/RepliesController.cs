@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Application;
+using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Replies;
 using YouTubester.Domain;
 
@@ -13,6 +14,18 @@ namespace YouTubester.Api;
 public class RepliesController(IReplyService service) : ControllerBase
 {
     [HttpGet]
+    public async Task<ActionResult<PagedResult<ReplyListItemDto>>> GetReplies(
+        [FromQuery] ReplyStatus[]? statuses = null,
+        [FromQuery] int? pageSize = null,
+        [FromQuery] string? pageToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await service.GetRepliesAsync(statuses, pageSize, pageToken, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("for-approval")]
+    [Obsolete("Use GET /api/replies with status filter instead")]
     public async Task<ActionResult<IEnumerable<Reply>>> GetDrafts(CancellationToken cancellationToken = default)
     {
         return Ok(await service.GetRepliesForApprovalAsync(cancellationToken));

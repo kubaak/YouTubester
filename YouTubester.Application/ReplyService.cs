@@ -1,12 +1,22 @@
-﻿using Hangfire;
+using Hangfire;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using YouTubester.Application.Common;
+using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Replies;
+using YouTubester.Application.Exceptions;
 using YouTubester.Application.Jobs;
+using YouTubester.Application.Options;
 using YouTubester.Domain;
 using YouTubester.Persistence.Replies;
 
 namespace YouTubester.Application;
 
-public class ReplyService(IReplyRepository repository, IBackgroundJobClient backgroundJobClient)
+public class ReplyService(
+    IReplyRepository repository,
+    IBackgroundJobClient backgroundJobClient,
+    IOptions<ReplyListingOptions> options,
+    ILogger<ReplyService> logger)
     : IReplyService
 {
     public Task<IEnumerable<Reply>> GetRepliesForApprovalAsync(CancellationToken cancellationToken)
@@ -106,5 +116,68 @@ public class ReplyService(IReplyRepository repository, IBackgroundJobClient back
             ok,
             fail,
             results);
+    }
+
+    public async Task<PagedResult<ReplyListItemDto>> GetRepliesAsync(ReplyStatus[]? statuses, int? pageSize, string? pageToken, CancellationToken ct)
+    {
+        var opts = options.Value;
+        var effectivePageSize = pageSize ?? opts.DefaultPageSize;
+        if (effectivePageSize < 1 || effectivePageSize > opts.MaxPageSize)
+        {
+            throw new InvalidPageSizeException(effectivePageSize, opts.MaxPageSize);
+        }
+
+        var statusBinding = statuses is null ? string.Empty : string.Join(',', statuses.OrderBy(s => s));
+        var binding = statusBinding;
+
+        DateTimeOffset? afterPulledAtUtc = null;
+        string? afterCommentId = null;
+        if (!string.IsNullOrWhiteSpace(pageToken))
+        {
+            if (!RepliesPageToken.TryParse(pageToken, out var pulledAt, out var commentId, out var tokenBinding))
+            {
+                logger.LogWarning("Invalid page token received");
+                throw new InvalidPageTokenException();
+            }
+
+            if (!string.IsNullOrEmpty(tokenBinding) && !string.Equals(tokenBinding, binding, StringComparison.Ordinal))
+            {
+                logger.LogWarning("Page token binding mismatch");
+                throw new InvalidPageTokenException("Page token does not match current filters.");
+            }
+
+            afterPulledAtUtc = pulledAt;
+            afterCommentId = commentId;
+        }
+
+        // Fetch one extra item to determine if there's a next page
+        var take = effectivePageSize + 1;
+        var replies = await repository.GetRepliesPageAsync(statuses, afterPulledAtUtc, afterCommentId, take, ct);
+
+        // Determine if there are more items
+        var hasMore = replies.Count > effectivePageSize;
+        var itemsToReturn = hasMore ? replies.Take(effectivePageSize).ToList() : replies;
+
+        string? nextPageToken = null;
+        if (hasMore && itemsToReturn.Count > 0)
+        {
+            var lastItem = itemsToReturn[^1];
+            nextPageToken = RepliesPageToken.Serialize(lastItem.PulledAt, lastItem.CommentId, binding);
+        }
+
+        var items = itemsToReturn.Select(r => new ReplyListItemDto
+        {
+            CommentId = r.CommentId,
+            VideoId = r.VideoId,
+            VideoTitle = r.VideoTitle,
+            CommentText = r.CommentText,
+            Status = r.Status,
+            PulledAt = r.PulledAt,
+            SuggestedAt = r.SuggestedAt,
+            ApprovedAt = r.ApprovedAt,
+            PostedAt = r.PostedAt
+        }).ToList();
+
+        return new PagedResult<ReplyListItemDto> { Items = items, NextPageToken = nextPageToken };
     }
 }

@@ -61,6 +61,7 @@ builder.Services.AddScoped<IChannelSyncService, ChannelSyncService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
 
 builder.Services.AddVideoListingOptions(builder.Configuration);
+builder.Services.AddReplyListingOptions(builder.Configuration);
 
 builder.Services.AddGoogleAuthentication(builder.Configuration, builder.Environment);
 
