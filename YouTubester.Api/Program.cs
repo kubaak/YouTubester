@@ -1,9 +1,11 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using YouTubester.Application;
+using YouTubester.Application.Channels;
 using YouTubester.Integration;
 using YouTubester.Persistence;
 using YouTubester.Persistence.Channels;
+using YouTubester.Persistence.Playlists;
 using YouTubester.Persistence.Replies;
 using YouTubester.Persistence.Videos;
 
@@ -25,9 +27,11 @@ builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddScoped<IChannelRepository, ChannelRepository>();
 builder.Services.AddScoped<IVideoRepository, VideoRepository>();
+builder.Services.AddScoped<IPlaylistRepository, PlaylistRepository>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<IReplyService, ReplyService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
+builder.Services.AddScoped<IChannelSyncService, ChannelSyncService>();
 builder.Services.AddSingleton<IYouTubeClientFactory, YouTubeClientFactory>();
 
 builder.Services.AddVideoListingOptions(builder.Configuration);
@@ -59,4 +63,7 @@ app.MapControllers();
 app.Run();
 
 // Make Program class accessible for integration testing
-public partial class Program { }
+namespace YouTubester.Api
+{
+    public partial class Program { }
+}

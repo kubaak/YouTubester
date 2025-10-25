@@ -20,4 +20,12 @@ public interface IYouTubeIntegration
 
     Task<IReadOnlyList<string>> GetPlaylistsContainingAsync(string videoId, CancellationToken cancellationToken);
     Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken);
+
+    IAsyncEnumerable<(string Id, string? Title)> GetPlaylistsAsync(string channelId,
+        CancellationToken cancellationToken);
+
+    IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(string playlistId, CancellationToken cancellationToken);
+
+    IAsyncEnumerable<string> GetVideoIdsNewerThanAsync(string channelId, DateTimeOffset? cutoff,
+        CancellationToken cancellationToken);
 }

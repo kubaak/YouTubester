@@ -32,6 +32,19 @@ public class WorkerHost_SmokeTests
     {
         // Arrange
         await _fixture.ResetDbAsync();
+        _fixture.WorkerFactory.MockYouTubeIntegration
+            .Setup(m => m.UpdateVideoAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<(double lat, double lng)?>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         // Act & Assert - Worker host builds and services are available
         _fixture.WorkerServices.Should().NotBeNull();

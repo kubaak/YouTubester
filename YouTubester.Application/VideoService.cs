@@ -43,7 +43,7 @@ public class VideoService(
                 videoDto.Description,
                 videoDto.PublishedAt,
                 videoDto.Duration,
-                MapVisibility(videoDto.PrivacyStatus, videoDto.PublishedAt, DateTimeOffset.UtcNow),
+                VideoVisibilityMapper.MapVisibility(videoDto.PrivacyStatus, videoDto.PublishedAt, DateTimeOffset.UtcNow),
                 videoDto.Tags,
                 videoDto.CategoryId,
                 videoDto.DefaultLanguage, videoDto.DefaultAudioLanguage,
@@ -137,22 +137,4 @@ public class VideoService(
         return new PagedResult<VideoListItemDto> { Items = items, NextPageToken = nextPageToken };
     }
 
-    private static VideoVisibility MapVisibility(string? privacyStatus, DateTimeOffset? publishAtUtc,
-        DateTimeOffset nowUtc)
-    {
-        if (string.Equals(privacyStatus, "private", StringComparison.OrdinalIgnoreCase)
-            && publishAtUtc.HasValue
-            && publishAtUtc.Value > nowUtc)
-        {
-            return VideoVisibility.Scheduled;
-        }
-
-        if (!string.IsNullOrWhiteSpace(privacyStatus) &&
-            Enum.TryParse<VideoVisibility>(privacyStatus, true, out var parsed))
-        {
-            return parsed;
-        }
-
-        return VideoVisibility.Private;
-    }
 }

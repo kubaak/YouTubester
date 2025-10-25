@@ -22,11 +22,14 @@ namespace YouTubester.Persistence.Migrations
                     b.Property<string>("ChannelId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastUploadsCutoff")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("UpdatedAt")
+                    b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UploadsPlaylistId")
@@ -36,6 +39,31 @@ namespace YouTubester.Persistence.Migrations
                     b.HasKey("ChannelId");
 
                     b.ToTable("Channels");
+                });
+
+            modelBuilder.Entity("YouTubester.Domain.Playlist", b =>
+                {
+                    b.Property<string>("PlaylistId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChannelId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastMembershipSyncAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PlaylistId");
+
+                    b.HasIndex("ChannelId");
+
+                    b.ToTable("Playlists");
                 });
 
             modelBuilder.Entity("YouTubester.Domain.Reply", b =>
@@ -85,9 +113,6 @@ namespace YouTubester.Persistence.Migrations
 
             modelBuilder.Entity("YouTubester.Domain.Video", b =>
                 {
-                    b.Property<string>("UploadsPlaylistId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("VideoId")
                         .HasColumnType("TEXT");
 
@@ -125,10 +150,14 @@ namespace YouTubester.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UploadsPlaylistId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Visibility")
                         .HasColumnType("INTEGER");
 
-                    b.HasKey("UploadsPlaylistId", "VideoId");
+                    b.HasKey("VideoId");
 
                     b.HasIndex("UpdatedAt");
 
@@ -137,13 +166,34 @@ namespace YouTubester.Persistence.Migrations
                     b.ToTable("Videos");
                 });
 
+            modelBuilder.Entity("YouTubester.Domain.VideoPlaylist", b =>
+                {
+                    b.Property<string>("VideoId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PlaylistId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("VideoId", "PlaylistId");
+
+                    b.HasIndex("PlaylistId");
+
+                    b.ToTable("VideoPlaylists");
+                });
+
+            modelBuilder.Entity("YouTubester.Domain.Playlist", b =>
+                {
+                    b.HasOne("YouTubester.Domain.Channel", null)
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("YouTubester.Domain.Video", b =>
                 {
                     b.OwnsOne("YouTubester.Domain.GeoLocation", "Location", b1 =>
                         {
-                            b1.Property<string>("VideoUploadsPlaylistId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<string>("VideoId")
                                 .HasColumnType("TEXT");
 
@@ -153,15 +203,30 @@ namespace YouTubester.Persistence.Migrations
                             b1.Property<double>("Longitude")
                                 .HasColumnType("REAL");
 
-                            b1.HasKey("VideoUploadsPlaylistId", "VideoId");
+                            b1.HasKey("VideoId");
 
                             b1.ToTable("Videos");
 
                             b1.WithOwner()
-                                .HasForeignKey("VideoUploadsPlaylistId", "VideoId");
+                                .HasForeignKey("VideoId");
                         });
 
                     b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("YouTubester.Domain.VideoPlaylist", b =>
+                {
+                    b.HasOne("YouTubester.Domain.Playlist", null)
+                        .WithMany()
+                        .HasForeignKey("PlaylistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("YouTubester.Domain.Video", null)
+                        .WithMany()
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

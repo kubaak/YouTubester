@@ -9,6 +9,8 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
     public DbSet<Reply> Replies => Set<Reply>();
     public DbSet<Channel> Channels => Set<Channel>();
     public DbSet<Video> Videos => Set<Video>();
+    public DbSet<Playlist> Playlists => Set<Playlist>();
+    public DbSet<VideoPlaylist> VideoPlaylists => Set<VideoPlaylist>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -24,8 +26,14 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
 
         b.Entity<Channel>().HasKey(x => x.ChannelId);
+        b.Entity<Channel>().Property(x => x.UpdatedAt).HasConversion(
+            v => v.UtcDateTime,
+            v => new DateTimeOffset(v, TimeSpan.Zero));
+        b.Entity<Channel>().Property(x => x.LastUploadsCutoff).HasConversion(
+            v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
+            v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
 
-        b.Entity<Video>().HasKey(v => new { v.UploadsPlaylistId, v.VideoId });
+        b.Entity<Video>().HasKey(v => v.VideoId);
         b.Entity<Video>().HasIndex(x => x.UpdatedAt);
         // Composite index for video listing performance (PublishedAt DESC, VideoId DESC)
         b.Entity<Video>().HasIndex(v => new { v.PublishedAt, v.VideoId });
@@ -46,5 +54,23 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
                 x.Property(p => p.Longitude);
                 x.WithOwner();
             });
+
+        b.Entity<Playlist>().HasKey(x => x.PlaylistId);
+        b.Entity<Playlist>().HasIndex(x => x.ChannelId);
+        b.Entity<Playlist>().HasOne<Channel>().WithMany().HasForeignKey(p => p.ChannelId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Playlist>().Property(x => x.UpdatedAt).HasConversion(
+            v => v.UtcDateTime,
+            v => new DateTimeOffset(v, TimeSpan.Zero));
+        b.Entity<Playlist>().Property(x => x.LastMembershipSyncAt).HasConversion(
+            v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
+            v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
+
+        b.Entity<VideoPlaylist>().HasKey(x => new { x.VideoId, x.PlaylistId });
+        b.Entity<VideoPlaylist>().HasIndex(x => x.PlaylistId);
+        b.Entity<VideoPlaylist>().HasOne<Playlist>().WithMany().HasForeignKey(x => x.PlaylistId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<VideoPlaylist>().HasOne<Video>().WithMany()
+            .HasForeignKey(x => x.VideoId).OnDelete(DeleteBehavior.Cascade);
     }
 }
