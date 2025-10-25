@@ -6,6 +6,7 @@ using YouTubester.Application.Contracts.Videos;
 using YouTubester.Application.Exceptions;
 using YouTubester.Application.Jobs;
 using YouTubester.Domain;
+using YouTubester.Persistence.Channels;
 
 namespace YouTubester.Api;
 
@@ -19,7 +20,8 @@ namespace YouTubester.Api;
 [Tags("Videos")]
 public sealed class VideosController(
     IBackgroundJobClient jobClient,
-    IVideoService service
+    IVideoService service,
+    IChannelRepository channelRepository
 ) : ControllerBase
 {
     /// <summary>
@@ -52,6 +54,20 @@ public sealed class VideosController(
 
         var res = jobClient.Enqueue<CopyVideoTemplateJob>(j => j.Run(request, JobCancellationToken.Null));
         return Ok(res);
+    }
+
+    [HttpPost("sync/{channelName}")]
+    [ProducesResponseType(typeof(SyncVideosResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<SyncVideosResult>> Sync([FromRoute] string channelName, CancellationToken ct)
+    {
+        var channel = await channelRepository.GetChannelByNameAsync(channelName, ct);
+        if (channel is null)
+        {
+            return NotFound(new { message = $"Channel '{channelName}' not found." });
+        }
+
+        var result = await service.SyncChannelVideosAsync(channel.UploadsPlaylistId, ct);
+        return Ok(result);
     }
 
     /// <summary>
