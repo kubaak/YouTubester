@@ -1,42 +1,43 @@
 using System.Text.RegularExpressions;
+using Hangfire;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using YouTubester.Application;
 using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Replies;
 using YouTubester.Persistence.Videos;
 
-namespace YouTubester.Worker;
+namespace YouTubester.Application.Jobs;
 
-public partial class CommentScanWorker(
-    ILogger<CommentScanWorker> log,
-    IServiceScopeFactory scopeFactory,
-    IOptions<WorkerOptions> opt)
-    : BackgroundService
+public sealed partial class CommentScanJob(
+    ILogger<CommentScanJob> logger,
+    IOptions<WorkerOptions> options,
+    IYouTubeIntegration youTubeIntegration,
+    IAiClient aiClient,
+    IChannelRepository channelRepository,
+    IVideoRepository videoRepository,
+    IReplyRepository replyRepository)
 {
-    private readonly WorkerOptions _opt = opt.Value;
+    private readonly WorkerOptions _options = options.Value;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    [Queue("scanning")]
+    [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
+    public async Task Run(IJobCancellationToken jobCancellationToken)
     {
-        log.LogInformation("CommentScanWorker started. Interval: {S}s", _opt.IntervalSeconds);
-        var timer = new PeriodicTimer(TimeSpan.FromSeconds(_opt.IntervalSeconds));
+        jobCancellationToken.ThrowIfCancellationRequested();
 
-        do
+        try
         {
-            try
-            {
-                var count = await ScanOnceAsync(stoppingToken);
-                log.LogInformation("Scan completed. Drafted: {Count}", count);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                log.LogError(ex, "Scan failed");
-            }
-        } while (await timer.WaitForNextTickAsync(stoppingToken));
+            var count = await ScanOnceAsync(jobCancellationToken.ShutdownToken);
+            logger.LogInformation("Comment scan completed. Drafted: {Count}", count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Comment scan failed");
+            throw;
+        }
     }
 
     private static bool IsEmojiOnly(string text)
@@ -46,36 +47,29 @@ public partial class CommentScanWorker(
 
     private async Task<int> ScanOnceAsync(CancellationToken cancellationToken)
     {
-        using var scope = scopeFactory.CreateScope();
-        var yt = scope.ServiceProvider.GetRequiredService<IYouTubeIntegration>();
-        var ai = scope.ServiceProvider.GetRequiredService<IAiClient>();
-        var channelRepository = scope.ServiceProvider.GetRequiredService<IChannelRepository>();
-        var videoRepository = scope.ServiceProvider.GetRequiredService<IVideoRepository>();
-        var replyRepository = scope.ServiceProvider.GetRequiredService<IReplyRepository>();
-
         var channels = await channelRepository.GetChannelsAsync(cancellationToken);
         var drafted = 0;
+
         foreach (var channel in channels)
         {
             var channelId = channel.ChannelId;
 
             foreach (var video in await videoRepository.GetAllVideosAsync(cancellationToken))
             {
-                if (drafted >= _opt.MaxDraftsPerRun)
+                if (drafted >= _options.MaxDraftsPerRun)
                 {
                     break;
                 }
-
 
                 if (video.Visibility != VideoVisibility.Public)
                 {
                     continue;
                 }
 
-                await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(channelId, video.VideoId,
+                await foreach (var thread in youTubeIntegration.GetUnansweredTopLevelCommentsAsync(channelId, video.VideoId,
                                    cancellationToken))
                 {
-                    if (drafted >= _opt.MaxDraftsPerRun)
+                    if (drafted >= _options.MaxDraftsPerRun)
                     {
                         break;
                     }
@@ -94,7 +88,7 @@ public partial class CommentScanWorker(
                     }
                     else
                     {
-                        var suggestion = await ai.SuggestReplyAsync(
+                        var suggestion = await aiClient.SuggestReplyAsync(
                             video.Title ?? string.Empty,
                             video.Tags,
                             thread.Text,
@@ -115,7 +109,6 @@ public partial class CommentScanWorker(
                 }
             }
         }
-
 
         return drafted;
     }

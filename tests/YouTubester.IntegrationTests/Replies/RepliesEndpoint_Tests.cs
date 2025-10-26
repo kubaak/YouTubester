@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
+using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Replies;
 using YouTubester.Domain;
 using YouTubester.IntegrationTests.TestHost;
@@ -32,7 +33,9 @@ public class RepliesEndpoint_Tests(TestFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var content = await response.Content.ReadAsStringAsync();
-        content.Should().Be("[]");
+        var page = JsonSerializer.Deserialize<PagedResult<ReplyListItemDto>>(content, _serializerOptions);
+        page.Should().NotBeNull();
+        page!.Items.Should().BeEmpty();
     }
 
     [Fact]
@@ -74,24 +77,24 @@ public class RepliesEndpoint_Tests(TestFixture fixture)
         }
 
         // Act
-        var response = await fixture.HttpClient.GetAsync("/api/replies");
+        var response = await fixture.HttpClient.GetAsync("/api/replies?statuses=Suggested");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var content = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<JsonElement[]>(content, _serializerOptions);
+        var page = JsonSerializer.Deserialize<PagedResult<ReplyListItemDto>>(content, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result!.Should().HaveCount(1); // Only Suggested replies are returned for approval
+        page.Should().NotBeNull();
+        page!.Items.Should().HaveCount(1); // Only Suggested replies are returned for approval
 
-        var comment1 = result.FirstOrDefault(r => r.GetProperty("commentId").GetString() == "comment1");
-        comment1.ValueKind.Should().NotBe(JsonValueKind.Undefined);
-        comment1.GetProperty("status").GetInt32().Should().Be((int)ReplyStatus.Suggested);
+        var comment1 = page.Items.FirstOrDefault(r => r.CommentId == "comment1");
+        comment1.Should().NotBeNull();
+        comment1!.Status.Should().Be(ReplyStatus.Suggested);
 
         // comment2 (Pulled status) should not be returned for approval
-        result.Should().NotContain(r => r.GetProperty("commentId").GetString() == "comment2");
-        result.Should().NotContain(r => r.GetProperty("commentId").GetString() == "comment3"); // Posted replies should not be returned
+        page.Items.Should().NotContain(r => r.CommentId == "comment2");
+        page.Items.Should().NotContain(r => r.CommentId == "comment3"); // Posted replies should not be returned
     }
 
     [Fact]

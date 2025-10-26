@@ -1,4 +1,4 @@
-﻿namespace YouTubester.Worker;
+namespace YouTubester.Application;
 
 public class WorkerOptions
 {

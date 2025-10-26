@@ -13,7 +13,6 @@ using YouTubester.Persistence;
 using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Replies;
 using YouTubester.Persistence.Videos;
-using YouTubester.Worker;
 
 namespace YouTubester.IntegrationTests.TestHost;
 
