@@ -62,5 +62,38 @@ public class ReplyRepository(YouTubesterDb db) : IReplyRepository
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, _ => ReplyStatus.Ignored), ct);
         return list;
     }
+
+    public async Task<List<Reply>> GetRepliesPageAsync(IReadOnlyCollection<ReplyStatus>? statuses, DateTimeOffset? afterPulledAtUtc, string? afterCommentId, int take, CancellationToken ct)
+    {
+        var query = db.Replies.AsNoTracking();
+
+        // Apply status filtering
+        if (statuses != null && statuses.Count > 0)
+        {
+            query = query.Where(r => statuses.Contains(r.Status));
+        }
+
+        // Apply cursor-based pagination
+        if (afterPulledAtUtc.HasValue)
+        {
+            if (string.IsNullOrEmpty(afterCommentId))
+            {
+                // Only date cursor
+                query = query.Where(r => r.PulledAt < afterPulledAtUtc.Value);
+            }
+            else
+            {
+                // Date and ID cursor for tie-breaking
+                query = query.Where(r => r.PulledAt < afterPulledAtUtc.Value ||
+                    (r.PulledAt == afterPulledAtUtc.Value && string.Compare(r.CommentId, afterCommentId, StringComparison.Ordinal) < 0));
+            }
+        }
+
+        return await query
+            .OrderByDescending(r => r.PulledAt)
+            .ThenByDescending(r => r.CommentId)
+            .Take(take)
+            .ToListAsync(ct);
+    }
 }
 

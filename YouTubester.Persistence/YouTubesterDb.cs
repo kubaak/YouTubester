@@ -26,6 +26,7 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
 
         b.Entity<Channel>().HasKey(x => x.ChannelId);
+        b.Entity<Channel>().Property(x => x.ETag).HasMaxLength(128);
         b.Entity<Channel>().Property(x => x.UpdatedAt).HasConversion(
             v => v.UtcDateTime,
             v => new DateTimeOffset(v, TimeSpan.Zero));
@@ -37,6 +38,7 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
         b.Entity<Video>().HasIndex(x => x.UpdatedAt);
         // Composite index for video listing performance (PublishedAt DESC, VideoId DESC)
         b.Entity<Video>().HasIndex(v => new { v.PublishedAt, v.VideoId });
+        b.Entity<Video>().Property(x => x.ETag).HasMaxLength(128);
         //.HasConversion because Sqlite doesn't support DateTimeOffset
         b.Entity<Video>().Property(x => x.CachedAt).HasConversion(
             v => v.UtcDateTime,
@@ -57,6 +59,7 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
 
         b.Entity<Playlist>().HasKey(x => x.PlaylistId);
         b.Entity<Playlist>().HasIndex(x => x.ChannelId);
+        b.Entity<Playlist>().Property(x => x.ETag).HasMaxLength(128);
         b.Entity<Playlist>().HasOne<Channel>().WithMany().HasForeignKey(p => p.ChannelId)
             .OnDelete(DeleteBehavior.Cascade);
         b.Entity<Playlist>().Property(x => x.UpdatedAt).HasConversion(

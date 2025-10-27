@@ -115,12 +115,196 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService) : IYouTube
                     video.Id, title, description, tags, duration, privacyStatus,
                     duration <= TimeSpan.FromSeconds(60), metaPublishedAt ?? DateTimeOffset.MinValue,
                     video.Snippet?.CategoryId, video.Snippet?.DefaultLanguage, video.Snippet?.DefaultAudioLanguage,
-                    location, video.RecordingDetails?.LocationDescription
+                    location, video.RecordingDetails?.LocationDescription,
+                    video.ETag, null // CommentsAllowed will be determined separately
                 );
             }
 
             page = playlistResponse.NextPageToken;
         } while (!string.IsNullOrEmpty(page));
+    }
+
+    public async Task<bool?> CheckCommentsAllowedAsync(string videoId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // First check if video is made for kids (short-circuit)
+            var videoRequest = youTubeService.Videos.List("status");
+            videoRequest.Id = videoId;
+            var videoResponse = await videoRequest.ExecuteAsync(cancellationToken);
+            var video = videoResponse.Items?.FirstOrDefault();
+
+            if (video?.Status != null)
+            {
+                if (video.Status.MadeForKids == true || video.Status.SelfDeclaredMadeForKids == true)
+                {
+                    return false; // Comments disabled for kids content
+                }
+            }
+
+            // Check comments by attempting to list them
+            var commentsRequest = youTubeService.CommentThreads.List("id");
+            commentsRequest.VideoId = videoId;
+            commentsRequest.MaxResults = 1;
+
+            await commentsRequest.ExecuteAsync(cancellationToken);
+            return true; // Comments allowed if request succeeds
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            // Check if the error is specifically about comments being disabled
+            if (ex.HttpStatusCode == System.Net.HttpStatusCode.Forbidden &&
+                ex.Error?.Errors?.Any(e => e.Reason == "commentsDisabled") == true)
+            {
+                return false;
+            }
+
+            // For other errors, return null to indicate unknown status
+            return null;
+        }
+        catch
+        {
+            // For any other exceptions, return null to indicate unknown status
+            return null;
+        }
+    }
+
+    public async Task<IReadOnlyList<VideoDto>> GetVideosAsync(IEnumerable<string> videoIds, string? ifNoneMatch,
+        CancellationToken cancellationToken)
+    {
+        var videoIdsList = videoIds.ToList();
+        if (videoIdsList.Count == 0)
+        {
+            return Array.Empty<VideoDto>();
+        }
+
+        var videoRequest = youTubeService.Videos.List("snippet,contentDetails,status,recordingDetails");
+        videoRequest.Id = string.Join(",", videoIdsList);
+
+        // Note: Google API client doesn't directly support If-None-Match headers
+        // For now, we'll skip conditional requests and implement them later
+        // when we find the proper way to set custom headers
+
+        try
+        {
+            var videoResponse = await videoRequest.ExecuteAsync(cancellationToken);
+            var result = new List<VideoDto>();
+
+            foreach (var video in videoResponse.Items)
+            {
+                if (string.IsNullOrWhiteSpace(video.Id))
+                {
+                    continue;
+                }
+
+                var title = video.Snippet?.Title ?? string.Empty;
+                var description = video.Snippet?.Description ?? string.Empty;
+                var tags = video.Snippet?.Tags?.Where(t => !string.IsNullOrWhiteSpace(t));
+                var iso = video.ContentDetails?.Duration ?? "PT0S";
+                var duration = System.Xml.XmlConvert.ToTimeSpan(iso);
+                var privacy = video.Status?.PrivacyStatus ?? "private";
+                var publishAt = video.Status?.PublishAtDateTimeOffset;
+                var isScheduled = string.Equals(privacy, "private", StringComparison.OrdinalIgnoreCase)
+                                  && publishAt.HasValue
+                                  && publishAt.Value > DateTimeOffset.UtcNow;
+                var privacyStatus = isScheduled ? "scheduled" : privacy;
+                var geoPoint = video.RecordingDetails?.Location;
+                var latitude = geoPoint?.Latitude;
+                var longitude = geoPoint?.Longitude;
+                ValueTuple<double, double>? location = null;
+                if (latitude is not null && longitude is not null)
+                {
+                    location = new ValueTuple<double, double>(latitude.Value, longitude.Value);
+                }
+
+                result.Add(new VideoDto(
+                    video.Id, title, description, tags, duration, privacyStatus,
+                    duration <= TimeSpan.FromSeconds(60), video.Snippet?.PublishedAtDateTimeOffset ?? DateTimeOffset.MinValue,
+                    video.Snippet?.CategoryId, video.Snippet?.DefaultLanguage, video.Snippet?.DefaultAudioLanguage,
+                    location, video.RecordingDetails?.LocationDescription,
+                    video.ETag, null // CommentsAllowed will be determined separately
+                ));
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            // Note: 304 handling will be added later when we implement If-None-Match headers properly
+            throw;
+        }
+    }
+
+    public async Task<IReadOnlyList<PlaylistDto>> GetMyPlaylistsAsync(string? ifNoneMatch, CancellationToken cancellationToken)
+    {
+        var playlistRequest = youTubeService.Playlists.List("id,snippet");
+        playlistRequest.Mine = true;
+        playlistRequest.MaxResults = 50;
+
+        // Note: Google API client doesn't directly support If-None-Match headers
+        // For now, we'll skip conditional requests and implement them later
+
+        try
+        {
+            var result = new List<PlaylistDto>();
+            string? pageToken = null;
+
+            do
+            {
+                playlistRequest.PageToken = pageToken;
+                var playlistResponse = await playlistRequest.ExecuteAsync(cancellationToken);
+
+                if (playlistResponse.Items != null)
+                {
+                    foreach (var playlist in playlistResponse.Items)
+                    {
+                        if (!string.IsNullOrWhiteSpace(playlist.Id))
+                        {
+                            result.Add(new PlaylistDto(playlist.Id, playlist.Snippet?.Title, playlist.ETag));
+                        }
+                    }
+                }
+
+                pageToken = playlistResponse.NextPageToken;
+            } while (!string.IsNullOrWhiteSpace(pageToken));
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            // Note: 304 handling will be added later when we implement If-None-Match headers properly
+            throw;
+        }
+    }
+
+    public async Task<ChannelDto?> GetChannelAsync(string channelId, string? ifNoneMatch, CancellationToken cancellationToken)
+    {
+        var channelRequest = youTubeService.Channels.List("snippet,contentDetails");
+        channelRequest.Id = channelId;
+
+        // Note: Google API client doesn't directly support If-None-Match headers
+        // For now, we'll skip conditional requests and implement them later
+
+        try
+        {
+            var channelResponse = await channelRequest.ExecuteAsync(cancellationToken);
+            var channel = channelResponse.Items?.FirstOrDefault();
+
+            if (channel == null || string.IsNullOrWhiteSpace(channel.Id))
+            {
+                return null;
+            }
+
+            var uploadsPlaylistId = channel.ContentDetails?.RelatedPlaylists?.Uploads ?? string.Empty;
+            var name = channel.Snippet?.Title ?? string.Empty;
+
+            return new ChannelDto(channel.Id, name, uploadsPlaylistId, channel.ETag);
+        }
+        catch (Exception ex)
+        {
+            // Note: 304 handling will be added later when we implement If-None-Match headers properly
+            throw;
+        }
     }
 
     public async IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(

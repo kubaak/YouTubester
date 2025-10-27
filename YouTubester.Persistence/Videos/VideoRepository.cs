@@ -16,12 +16,12 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> UpsertAsync(IEnumerable<Video> videos, CancellationToken cancellationToken)
+    public async Task<(int Inserted, int Updated)> UpsertAsync(IEnumerable<Video> videos, CancellationToken cancellationToken)
     {
         var list = videos.ToList();
         if (list.Count == 0)
         {
-            return 0;
+            return (0, 0);
         }
 
         var ids = list.Select(i => i.VideoId).ToHashSet();
@@ -46,7 +46,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
                     video.Title, video.Description, video.PublishedAt, video.Duration,
                     video.Visibility, video.Tags, video.CategoryId, video.DefaultLanguage,
                     video.DefaultAudioLanguage, video.Location, video.LocationDescription, now,
-                    video.ThumbnailUrl
+                    video.ThumbnailUrl, video.ETag, video.CommentsAllowed
                 );
                 if (changed)
                 {
@@ -56,7 +56,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        return inserts + updates;
+        return (inserts, updates);
     }
 
     public async Task<List<Video>> GetVideosPageAsync(
@@ -115,5 +115,26 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             .FromSqlRaw(sql, parameters.ToArray())
             .AsNoTracking()
             .ToListAsync(ct);
+    }
+
+    public async Task<Dictionary<string, string?>> GetVideoETagsAsync(IEnumerable<string> videoIds, CancellationToken cancellationToken)
+    {
+        var videoIdsList = videoIds.ToList();
+        if (videoIdsList.Count == 0)
+        {
+            return new Dictionary<string, string?>();
+        }
+
+        return await db.Videos
+            .AsNoTracking()
+            .Where(v => videoIdsList.Contains(v.VideoId))
+            .ToDictionaryAsync(v => v.VideoId, v => v.ETag, cancellationToken);
+    }
+
+    public async Task<Video?> GetVideoByIdAsync(string videoId, CancellationToken cancellationToken)
+    {
+        return await db.Videos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.VideoId == videoId, cancellationToken);
     }
 }

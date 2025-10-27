@@ -25,6 +25,8 @@ public sealed class Video
     public string? DefaultAudioLanguage { get; private set; }
     public GeoLocation? Location { get; private set; }
     public string? LocationDescription { get; private set; }
+    public string? ETag { get; private set; }
+    public bool? CommentsAllowed { get; private set; }
     public DateTimeOffset CachedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public bool IsShort => Duration <= TimeSpan.FromSeconds(60);
@@ -46,7 +48,9 @@ public sealed class Video
         string? defaultAudioLanguage,
         GeoLocation? location,
         string? locationDescription,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        string? etag = null,
+        bool? commentsAllowed = null)
     {
         return new Video
         {
@@ -63,6 +67,8 @@ public sealed class Video
             DefaultAudioLanguage = defaultAudioLanguage,
             Location = location,
             LocationDescription = locationDescription,
+            ETag = etag,
+            CommentsAllowed = commentsAllowed,
             CachedAt = nowUtc,
             UpdatedAt = nowUtc
         };
@@ -81,7 +87,9 @@ public sealed class Video
         GeoLocation? location,
         string? locationDescription,
         DateTimeOffset nowUtc,
-        string? thumbnailUrl)
+        string? thumbnailUrl,
+        string? etag = null,
+        bool? commentsAllowed = null)
     {
         var dirty = false;
 
@@ -153,6 +161,18 @@ public sealed class Video
         if (!StringComparer.Ordinal.Equals(LocationDescription, locationDescription))
         {
             LocationDescription = locationDescription;
+            dirty = true;
+        }
+
+        if (!StringComparer.Ordinal.Equals(ETag, etag))
+        {
+            ETag = etag;
+            dirty = true;
+        }
+
+        if (CommentsAllowed != commentsAllowed)
+        {
+            CommentsAllowed = commentsAllowed;
             dirty = true;
         }
 
