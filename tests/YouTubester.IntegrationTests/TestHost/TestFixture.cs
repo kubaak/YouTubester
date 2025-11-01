@@ -11,6 +11,7 @@ public sealed class TestFixture : IAsyncLifetime
 {
     public ApiTestWebAppFactory ApiFactory { get; private set; } = null!;
     public WorkerTestHostFactory WorkerFactory { get; private set; } = null!;
+    public CapturingBackgroundJobClient CapturingJobClient { get; } = new();
     public HttpClient HttpClient { get; private set; } = null!;
     public IServiceProvider ApiServices => ApiFactory.Services;
     public IServiceProvider WorkerServices => WorkerFactory.TestHost.Services;
@@ -19,8 +20,8 @@ public sealed class TestFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        ApiFactory = new ApiTestWebAppFactory();
-        WorkerFactory = new WorkerTestHostFactory(ApiFactory.TestDatabasePath);
+        ApiFactory = new ApiTestWebAppFactory(CapturingJobClient);
+        WorkerFactory = new WorkerTestHostFactory(CapturingJobClient, ApiFactory.TestDatabasePath);
         HttpClient = ApiFactory.CreateClient();
 
         // Ensure database is created once
@@ -35,8 +36,7 @@ public sealed class TestFixture : IAsyncLifetime
         await SqliteCleaner.CleanAsync(dbContext.Database.GetDbConnection());
 
         // Clear capturing job client
-        ApiFactory.CapturingJobClient.Clear();
-        WorkerFactory.CapturingJobClient.Clear();
+        CapturingJobClient.Clear();
         Auto = CreateAuto();
     }
 

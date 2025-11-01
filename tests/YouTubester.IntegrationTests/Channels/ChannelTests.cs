@@ -49,7 +49,7 @@ public sealed class ChannelTests(TestFixture fixture)
                 "video123",
                 "Test Video 1",
                 "Test Description 1",
-                new[] { "tag1", "tag2" },
+                ["tag1", "tag2"],
                 TimeSpan.FromMinutes(5),
                 "public",
                 false,
@@ -66,7 +66,7 @@ public sealed class ChannelTests(TestFixture fixture)
                 "video456",
                 "Test Video 2",
                 "Test Description 2",
-                new[] { "tag3", "tag4" },
+                ["tag3", "tag4"],
                 TimeSpan.FromMinutes(10),
                 "unlisted",
                 false,
@@ -89,7 +89,8 @@ public sealed class ChannelTests(TestFixture fixture)
 
         var mockPlaylistVideoIds = new Dictionary<string, List<string>>
         {
-            ["playlist123"] = ["video123", "video456"], ["playlist456"] = ["video456"]
+            ["playlist123"] = ["video123", "video456"],
+            ["playlist456"] = ["video456"]
         };
 
         // Setup MockYouTubeIntegration
@@ -224,7 +225,7 @@ public sealed class ChannelTests(TestFixture fixture)
                 "video789",
                 "Original Title",
                 "Original Description",
-                new[] { "tag1" },
+                ["tag1"],
                 TimeSpan.FromMinutes(3),
                 "public",
                 false,
@@ -245,7 +246,7 @@ public sealed class ChannelTests(TestFixture fixture)
                 "video789",
                 "Updated Title",
                 "Updated Description",
-                new[] { "tag1" },
+                ["tag1"],
                 TimeSpan.FromMinutes(3),
                 "public",
                 false,

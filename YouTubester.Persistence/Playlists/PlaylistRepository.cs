@@ -13,6 +13,15 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
             .ToListAsync(cancellationToken);
     }
 
+    public Task<List<string>> GetPlaylistIdsByVideoAsync(string videoId, CancellationToken cancellationToken)
+    {
+        return databaseContext.VideoPlaylists
+            .AsNoTracking()
+            .Where(v => v.VideoId == videoId)
+            .Select(v => v.PlaylistId)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<Playlist?> GetAsync(string playlistId, CancellationToken cancellationToken)
     {
         return await databaseContext.Playlists
@@ -69,56 +78,159 @@ public sealed class PlaylistRepository(YouTubesterDb databaseContext) : IPlaylis
         return videoIds.ToHashSet(StringComparer.Ordinal);
     }
 
-    public async Task<int> AddMembershipsAsync(string playlistId, IEnumerable<string> videoIds,
+    public async Task<int> SetMembershipsToPlaylistsAsync(
+        string videoId,
+        HashSet<string> playlistIds,
         CancellationToken cancellationToken)
     {
-        var candidateVideoIds = videoIds.ToHashSet(StringComparer.Ordinal);
-        if (candidateVideoIds.Count == 0)
+        if (string.IsNullOrWhiteSpace(videoId))
         {
             return 0;
         }
 
-        // Get existing memberships for this playlist
-        var existingMemberships = await databaseContext.VideoPlaylists
+        // FK safety: video must exist
+        var videoExists = await databaseContext.Videos
             .AsNoTracking()
-            .Where(vp => vp.PlaylistId == playlistId && candidateVideoIds.Contains(vp.VideoId))
-            .Select(vp => vp.VideoId)
-            .ToHashSetAsync(cancellationToken);
-
-        // Filter to new memberships only
-        var newVideoIds = candidateVideoIds.Except(existingMemberships).ToList();
-        if (newVideoIds.Count == 0)
+            .AnyAsync(v => v.VideoId == videoId, cancellationToken);
+        if (!videoExists)
         {
             return 0;
         }
 
-        // Filter to video IDs that exist in Videos table (FK safety)
+        // Only keep playlists that actually exist (silently ignore unknown IDs)
+        var desired = playlistIds.Count == 0
+            ? new HashSet<string>(StringComparer.Ordinal) // explicit "clear all"
+            : await databaseContext.Playlists
+                .AsNoTracking()
+                .Where(p => playlistIds.Contains(p.PlaylistId))
+                .Select(p => p.PlaylistId)
+                .ToHashSetAsync(StringComparer.Ordinal, cancellationToken);
+
+        // Current memberships for this video
+        var current = await databaseContext.VideoPlaylists
+            .AsNoTracking()
+            .Where(vp => vp.VideoId == videoId)
+            .Select(vp => vp.PlaylistId)
+            .ToHashSetAsync(StringComparer.Ordinal, cancellationToken);
+
+        // Diff
+        var toAdd = desired.Except(current).ToList();
+        var toRemove = current.Except(desired).ToList();
+
+        if (toAdd.Count == 0 && toRemove.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var tx = await databaseContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Remove memberships not desired
+        var removedCount = 0;
+        if (toRemove.Count > 0)
+        {
+            // Use ExecuteDeleteAsync => single round trip
+            removedCount = await databaseContext.VideoPlaylists
+                .Where(vp => vp.VideoId == videoId && toRemove.Contains(vp.PlaylistId))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        // Add new memberships (batched)
+        var addedCount = 0;
+        if (toAdd.Count > 0)
+        {
+            const int batch = 500;
+            for (var i = 0; i < toAdd.Count; i += batch)
+            {
+                var slice = toAdd.Skip(i).Take(batch)
+                    .Select(pid => VideoPlaylist.Create(videoId, pid))
+                    .ToList();
+
+                if (slice.Count > 0)
+                {
+                    databaseContext.VideoPlaylists.AddRange(slice);
+                    addedCount += slice.Count;
+                    await databaseContext.SaveChangesAsync(cancellationToken);
+                }
+            }
+        }
+
+        await tx.CommitAsync(cancellationToken);
+        return addedCount + removedCount;
+    }
+
+    public async Task<int> AddMembershipsAsync(
+        string playlistId,
+        HashSet<string> videoIds,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(playlistId))
+        {
+            return 0;
+        }
+
+        if (videoIds.Count == 0)
+        {
+            return 0;
+        }
+
+        // FK safety: ensure the playlist exists
+        var playlistExists = await databaseContext.Playlists
+            .AsNoTracking()
+            .AnyAsync(p => p.PlaylistId == playlistId, cancellationToken);
+        if (!playlistExists)
+        {
+            return 0;
+        }
+
+        // Find memberships that already exist for this playlist among requested videos
+        var alreadyLinked = await databaseContext.VideoPlaylists
+            .AsNoTracking()
+            .Where(vp => vp.PlaylistId == playlistId && videoIds.Contains(vp.VideoId))
+            .Select(vp => vp.VideoId)
+            .ToHashSetAsync(StringComparer.Ordinal, cancellationToken);
+
+        // Only add those not yet linked
+        var candidates = videoIds.Except(alreadyLinked).ToList();
+        if (candidates.Count == 0)
+        {
+            return 0;
+        }
+
+        // FK safety: keep only videos that actually exist
         var existingVideoIds = await databaseContext.Videos
             .AsNoTracking()
-            .Where(v => newVideoIds.Contains(v.VideoId))
+            .Where(v => candidates.Contains(v.VideoId))
             .Select(v => v.VideoId)
-            .ToHashSetAsync(cancellationToken);
+            .ToHashSetAsync(StringComparer.Ordinal, cancellationToken);
 
-        var validNewVideoIds = newVideoIds.Where(vid => existingVideoIds.Contains(vid)).ToList();
-        if (validNewVideoIds.Count == 0)
+        if (existingVideoIds.Count == 0)
         {
             return 0;
         }
 
-        // Add memberships in batches
+        // Insert in batches
         const int batchSize = 500;
         var addedCount = 0;
+        var toInsert = existingVideoIds.ToList();
 
-        for (var i = 0; i < validNewVideoIds.Count; i += batchSize)
+        for (var i = 0; i < toInsert.Count; i += batchSize)
         {
-            var batch = validNewVideoIds.Skip(i).Take(batchSize);
-            var memberships = batch.Select(videoId => VideoPlaylist.Create(videoId, playlistId)).ToList();
+            var batch = toInsert
+                .Skip(i)
+                .Take(batchSize)
+                .Select(videoId => VideoPlaylist.Create(videoId, playlistId))
+                .ToList();
 
-            databaseContext.VideoPlaylists.AddRange(memberships);
-            addedCount += memberships.Count;
+            if (batch.Count == 0)
+            {
+                continue;
+            }
+
+            databaseContext.VideoPlaylists.AddRange(batch);
+            addedCount += batch.Count;
+            await databaseContext.SaveChangesAsync(cancellationToken);
         }
 
-        await databaseContext.SaveChangesAsync(cancellationToken);
         return addedCount;
     }
 

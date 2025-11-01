@@ -8,6 +8,9 @@ using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application.Channels;
 
+//todos
+//1) Short-circuit unchanged playlists via stored ETags
+//2) Use a transactions
 public sealed class ChannelSyncService(
     IPlaylistRepository playlistRepository,
     IYouTubeIntegration youTubeIntegration,
@@ -159,7 +162,7 @@ public sealed class ChannelSyncService(
             var localVideoIds =
                 await playlistRepository.GetMembershipVideoIdsAsync(playlist.PlaylistId, cancellationToken);
 
-            var toAdd = remoteVideoIds.Except(localVideoIds).ToList();
+            var toAdd = remoteVideoIds.Except(localVideoIds).ToHashSet();
             var toRemove = localVideoIds.Except(remoteVideoIds).ToList();
 
             if (toAdd.Count > 0)
