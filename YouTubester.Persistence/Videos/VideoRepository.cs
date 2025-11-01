@@ -17,6 +17,13 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<Video?> GetVideoByIdAsync(string videoId, CancellationToken cancellationToken)
+    {
+        return await db.Videos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.VideoId == videoId, cancellationToken);
+    }
+
     public async Task<(int inserted, int updated)> UpsertAsync(IEnumerable<Video> videos,
         CancellationToken cancellationToken)
     {

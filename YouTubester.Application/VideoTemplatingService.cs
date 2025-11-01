@@ -1,26 +1,48 @@
+using Microsoft.EntityFrameworkCore;
+using YouTubester.Domain;
 using YouTubester.Integration;
+using YouTubester.Persistence;
+using YouTubester.Persistence.Playlists;
+using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application;
 
-public sealed class VideoTemplatingService(IYouTubeIntegration youTubeIntegration, IAiClient aiClient)
+public sealed class VideoTemplatingService(
+    IYouTubeIntegration youTubeIntegration,
+    IAiClient aiClient,
+    IVideoRepository videoRepository,
+    IPlaylistRepository playlistRepository)
     : IVideoTemplatingService
 {
     public async Task<CopyVideoTemplateResult> CopyTemplateAsync(
         CopyVideoTemplateRequest request, CancellationToken cancellationToken)
     {
-        var sourceId = ParseYouTubeVideoId(request.SourceUrl);
-        var targetId = ParseYouTubeVideoId(request.TargetUrl);
+        // Load source and target videos from DB
+        var sourceVideo = await videoRepository.GetVideoByIdAsync(request.SourceVideoId, cancellationToken)
+                          ?? throw new ArgumentException($"Source video {request.SourceVideoId} not found in cache.");
 
-        var source = await youTubeIntegration.GetVideoDetailsAsync(sourceId, cancellationToken) ?? throw new ArgumentException($"Source {sourceId} not found.");
-        var target = await youTubeIntegration.GetVideoDetailsAsync(targetId, cancellationToken) ?? throw new ArgumentException($"Target {targetId} not found.");
+        var targetVideo = await videoRepository.GetVideoByIdAsync(request.TargetVideoId, cancellationToken)
+                          ?? throw new ArgumentException($"Target video {request.TargetVideoId} not found in cache.");
 
-        var newTitle = source.Title;
-        var newDescription = source.Description;
-        var newTags = request.CopyTags ? SanitizeTags(source.Tags) : target.Tags;
+        // Build effective metadata starting from source
+        var newTitle = sourceVideo.Title ?? string.Empty;
+        var newDescription = sourceVideo.Description ?? string.Empty;
+        var newTags = request.CopyTags ? SanitizeTags(sourceVideo.Tags) : targetVideo.Tags;
+        var location = request.CopyLocation
+            ? ConvertToLocationTuple(sourceVideo.Location)
+            : ConvertToLocationTuple(targetVideo.Location);
+        var locationDescription =
+            request.CopyLocation ? sourceVideo.LocationDescription : targetVideo.LocationDescription;
+        var categoryId = request.CopyCategory ? sourceVideo.CategoryId : targetVideo.CategoryId;
+        var defaultLanguage = request.CopyDefaultLanguages ? sourceVideo.DefaultLanguage : targetVideo.DefaultLanguage;
+        var defaultAudioLanguage = request.CopyDefaultLanguages
+            ? sourceVideo.DefaultAudioLanguage
+            : targetVideo.DefaultAudioLanguage;
 
+        // Apply AI suggestions if provided
         if (request.AiSuggestionOptions is not null)
         {
-            var (suggestedTitle, suggestedDescription, tags) = await aiClient.SuggestMetadataAsync(
+            var (suggestedTitle, suggestedDescription, suggestedTags) = await aiClient.SuggestMetadataAsync(
                 request.AiSuggestionOptions.PromptEnrichment, cancellationToken);
 
             if (request.AiSuggestionOptions.GenerateTitle)
@@ -35,70 +57,96 @@ public sealed class VideoTemplatingService(IYouTubeIntegration youTubeIntegratio
 
             if (request.AiSuggestionOptions.GenerateTags)
             {
-                newTags = tags.ToArray();
+                newTags = suggestedTags.ToArray();
             }
         }
 
-        var location = request.CopyLocation ? source.Location : target.Location;
-        var locationDescription = request.CopyLocation ? source.LocationDescription : target.LocationDescription;
-        var categoryId = request.CopyCategory ? source.CategoryId : target.CategoryId;
-        var defaultLanguage = request.CopyDefaultLanguages ? source.DefaultLanguage : target.DefaultLanguage;
-        var defaultAudioLanguage = request.CopyDefaultLanguages ? source.DefaultAudioLanguage : target.DefaultAudioLanguage;
+        // Update target video on YouTube
+        await youTubeIntegration.UpdateVideoAsync(
+            request.TargetVideoId,
+            newTitle,
+            newDescription,
+            newTags,
+            categoryId,
+            defaultLanguage,
+            defaultAudioLanguage,
+            location,
+            locationDescription,
+            cancellationToken);
 
-        // 1) Update target video metadata
-        await youTubeIntegration.UpdateVideoAsync(targetId, newTitle, newDescription, newTags, categoryId,
-            defaultLanguage, defaultAudioLanguage, location, locationDescription, cancellationToken);
+        // Persist changes to DB only after successful YouTube update
+        var nowUtc = DateTimeOffset.UtcNow;
+        targetVideo.ApplyDetails(
+            newTitle,
+            newDescription,
+            targetVideo.PublishedAt,
+            targetVideo.Duration,
+            targetVideo.Visibility,
+            newTags,
+            categoryId,
+            defaultLanguage,
+            defaultAudioLanguage,
+            ConvertFromLocationTuple(location),
+            locationDescription,
+            nowUtc,
+            null, //we won't know the etag at from this point 
+            targetVideo.CommentsAllowed
+        );
 
-        // 2) Copy playlist membership (add-only, no removals)
-        var added = new List<string>();
-        if (request.CopyPlaylists)
+        await videoRepository.UpsertAsync([targetVideo], cancellationToken);
+
+        if (!request.CopyPlaylists)
         {
-            var sourcePlaylists = await youTubeIntegration.GetPlaylistsContainingAsync(sourceId, cancellationToken);
-            if (sourcePlaylists.Count > 0)
-            {
-                foreach (var playlistId in sourcePlaylists)
-                {
-                    await youTubeIntegration.AddVideoToPlaylistAsync(playlistId, targetId, cancellationToken);
-                    added.Add(playlistId);
-                }
-            }
+            return new CopyVideoTemplateResult(
+                request.SourceVideoId,
+                request.TargetVideoId,
+                newTitle,
+                newDescription,
+                newTags,
+                locationDescription,
+                location,
+                [],
+                request.CopyCategory,
+                request.CopyDefaultLanguages
+            );
         }
+
+        var playlistIds =
+            (await playlistRepository.GetPlaylistIdsByVideoAsync(sourceVideo.VideoId, cancellationToken))
+            .ToHashSet();
+        foreach (var playlistId in playlistIds)
+        {
+            await youTubeIntegration.AddVideoToPlaylistAsync(playlistId, targetVideo.VideoId, cancellationToken);
+        }
+
+        await playlistRepository.SetMembershipsToPlaylistsAsync(targetVideo.VideoId, playlistIds,
+            cancellationToken);
+
 
         return new CopyVideoTemplateResult(
-            sourceId, targetId, newTitle, newDescription, newTags, locationDescription, location,
-            added, request.CopyCategory, request.CopyDefaultLanguages
-            );
+            request.SourceVideoId,
+            request.TargetVideoId,
+            newTitle,
+            newDescription,
+            newTags,
+            locationDescription,
+            location,
+            playlistIds.ToArray(),
+            request.CopyCategory,
+            request.CopyDefaultLanguages
+        );
     }
 
-    private static string ParseYouTubeVideoId(string urlOrId)
+    private static (double lat, double lng)? ConvertToLocationTuple(GeoLocation? location)
     {
-        // Accept raw IDs and URLs; keep this liberal but robust
-        var s = urlOrId.Trim();
-        if (s.Length == 11 && !s.Contains('/'))
-        {
-            return s;  // likely already an ID
-        }
+        return location is not null
+            ? (location.Latitude, location.Longitude)
+            : null;
+    }
 
-        // common patterns: https://www.youtube.com/watch?v=VIDEOID, youtu.be/VIDEOID, plus lists & params
-        var uri = new Uri(s, UriKind.Absolute);
-        if (uri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
-        {
-            var id = uri.AbsolutePath.Trim('/');  // /VIDEOID
-            if (id.Length == 11)
-            {
-                return id;
-            }
-        }
-        if (uri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase))
-        {
-            var q = System.Web.HttpUtility.ParseQueryString(uri.Query);
-            var id = q["v"];
-            if (!string.IsNullOrEmpty(id) && id.Length == 11)
-            {
-                return id;
-            }
-        }
-        throw new ArgumentException("Could not parse YouTube video id from url.");
+    private static GeoLocation? ConvertFromLocationTuple((double lat, double lng)? location)
+    {
+        return location.HasValue ? new GeoLocation(location.Value.lat, location.Value.lng) : null;
     }
 
     private static string[] SanitizeTags(IReadOnlyList<string> tags)
@@ -122,6 +170,7 @@ public sealed class VideoTemplatingService(IYouTubeIntegration youTubeIntegratio
             result.Add(tag);
             total += add;
         }
+
         return result.ToArray();
     }
 }

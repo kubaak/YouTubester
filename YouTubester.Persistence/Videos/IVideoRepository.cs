@@ -6,6 +6,14 @@ public interface IVideoRepository
 {
     Task<List<Video>> GetCommentableVideosAsync(CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Gets a video by its ID from the database.
+    /// </summary>
+    /// <param name="videoId">The video ID to search for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The video if found, null otherwise.</returns>
+    Task<Video?> GetVideoByIdAsync(string videoId, CancellationToken cancellationToken);
+
     Task<(int inserted, int updated)> UpsertAsync(IEnumerable<Video> videos,
         CancellationToken cancellationToken = default);
 

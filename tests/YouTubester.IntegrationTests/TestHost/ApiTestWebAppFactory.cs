@@ -16,11 +16,11 @@ namespace YouTubester.IntegrationTests.TestHost;
 public class ApiTestWebAppFactory : WebApplicationFactory<Program>
 {
     public string TestDatabasePath { get; }
-    public CapturingBackgroundJobClient CapturingJobClient { get; }
+    private CapturingBackgroundJobClient CapturingJobClient { get; }
     public Mock<IAiClient> MockAiClient { get; }
     public Mock<IYouTubeIntegration> MockYouTubeIntegration { get; }
 
-    public ApiTestWebAppFactory()
+    public ApiTestWebAppFactory(CapturingBackgroundJobClient capturingJobClient)
     {
         TestDatabasePath = Path.Combine(
             Path.GetTempPath(),
@@ -30,7 +30,7 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
         var testDir = Path.GetDirectoryName(TestDatabasePath)!;
         Directory.CreateDirectory(testDir);
 
-        CapturingJobClient = new CapturingBackgroundJobClient();
+        CapturingJobClient = capturingJobClient;
         MockAiClient = new Mock<IAiClient>(MockBehavior.Strict);
         MockYouTubeIntegration = new Mock<IYouTubeIntegration>(MockBehavior.Strict);
     }

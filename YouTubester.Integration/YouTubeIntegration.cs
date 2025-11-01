@@ -337,7 +337,8 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         {
             video.RecordingDetails.Location = new GeoPoint
             {
-                Latitude = location.Value.lat, Longitude = location.Value.lng
+                Latitude = location.Value.lat,
+                Longitude = location.Value.lng
             };
             video.RecordingDetails.LocationDescription = locationDescription;
         }
@@ -391,6 +392,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
 
     public async Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken)
     {
+        //todo avoid checking to save the calls?
         // Check if already present to avoid duplicates
         string? page = null;
         do

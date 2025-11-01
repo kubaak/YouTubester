@@ -3,6 +3,7 @@ using Hangfire.Storage.SQLite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -11,6 +12,7 @@ using YouTubester.Application.Jobs;
 using YouTubester.Integration;
 using YouTubester.Persistence;
 using YouTubester.Persistence.Channels;
+using YouTubester.Persistence.Playlists;
 using YouTubester.Persistence.Replies;
 using YouTubester.Persistence.Videos;
 using YouTubester.Worker;
@@ -21,14 +23,12 @@ public sealed class WorkerTestHostFactory : IDisposable
 {
     public IHost TestHost { get; }
     public string TestDatabasePath { get; }
-    public CapturingBackgroundJobClient CapturingJobClient { get; }
     public Mock<IAiClient> MockAiClient { get; }
     public Mock<IYouTubeIntegration> MockYouTubeIntegration { get; }
 
-    public WorkerTestHostFactory(string testDatabasePath)
+    public WorkerTestHostFactory(CapturingBackgroundJobClient capturingJobClient, string testDatabasePath)
     {
         TestDatabasePath = testDatabasePath;
-        CapturingJobClient = new CapturingBackgroundJobClient();
         MockAiClient = new Mock<IAiClient>(MockBehavior.Strict);
         MockYouTubeIntegration = new Mock<IYouTubeIntegration>(MockBehavior.Strict);
 
@@ -46,7 +46,7 @@ public sealed class WorkerTestHostFactory : IDisposable
 
         hostBuilder.ConfigureServices((context, services) =>
         {
-            ConfigureServices(services, context.Configuration);
+            ConfigureServices(services, context.Configuration, capturingJobClient);
         });
 
         hostBuilder.ConfigureLogging(logging =>
@@ -59,40 +59,28 @@ public sealed class WorkerTestHostFactory : IDisposable
         TestHost = hostBuilder.Build();
     }
 
-    private void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    private void ConfigureServices(IServiceCollection services, IConfiguration configuration,
+        CapturingBackgroundJobClient capturingJobClient)
     {
-        // Add Worker options
-        services.Configure<WorkerOptions>(configuration.GetSection("Worker"));
+        // Use the same core registrations, but without hosted services & server
+        services.AddWorkerCore(configuration, Path.GetDirectoryName(TestDatabasePath)!,
+            false, false);
 
-        // Add test database
+        // Replace the DB with the test DB (overrides AddDatabase rootPath)
+        services.RemoveAll<YouTubesterDb>();
         services.AddDbContext<YouTubesterDb>(options =>
         {
             options.UseSqlite($"Data Source={TestDatabasePath}");
             options.EnableSensitiveDataLogging();
         });
 
-        // Add repositories
-        services.AddScoped<IChannelRepository, ChannelRepository>();
-        services.AddScoped<IVideoRepository, VideoRepository>();
-        services.AddScoped<IReplyRepository, ReplyRepository>();
+        // Override background job client + external integrations with mocks
+        services.Replace(ServiceDescriptor.Singleton<IBackgroundJobClient>(capturingJobClient));
+        services.Replace(ServiceDescriptor.Singleton(MockAiClient.Object));
+        services.Replace(ServiceDescriptor.Singleton(MockYouTubeIntegration.Object));
 
-        // Add services
-        services.AddScoped<IVideoTemplatingService, VideoTemplatingService>();
-
-        // Add jobs
-        services.AddScoped<PostApprovedRepliesJob>();
-        services.AddScoped<CopyVideoTemplateJob>();
-
-        // Add test doubles
-        services.AddSingleton<IBackgroundJobClient>(CapturingJobClient);
-        services.AddSingleton(MockAiClient.Object);
-        services.AddSingleton(MockYouTubeIntegration.Object);
-
-        // Add Hangfire without server - using SQLite storage like the main app
-        services.AddHangfire(config => { config.UseSQLiteStorage(TestDatabasePath); });
-
-        // DON'T add Hangfire server or CommentScanWorker hosted service
-        // We want to test jobs in isolation without background processing
+        // If AddWorkerCore added any IHostedService (we disabled, but as a guard):
+        services.RemoveAll<IHostedService>();
     }
 
     public async Task EnsureDatabaseCreatedAsync()

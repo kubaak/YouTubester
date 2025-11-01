@@ -48,7 +48,7 @@ public class CapturingBackgroundJobClient : IBackgroundJobClient
             : [];
     }
 
-    public async Task RunAll<TJob>(IServiceProvider serviceProvider)
+    public async Task RunAllAsync<TJob>(IServiceProvider serviceProvider)
         where TJob : notnull
     {
         var capturedJobs = GetEnqueued<TJob>().Concat(GetScheduled<TJob>());
@@ -60,6 +60,7 @@ public class CapturingBackgroundJobClient : IBackgroundJobClient
             var args = capturedJob.Job.Args;
 
             var argsArray = args.ToArray();
+            argsArray[1] = new JobCancellationToken(false);
             if (method.ReturnType == typeof(Task))
             {
                 var task = (Task)method.Invoke(jobInstance, argsArray)!;
