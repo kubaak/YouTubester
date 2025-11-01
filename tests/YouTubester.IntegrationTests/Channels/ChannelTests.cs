@@ -18,6 +18,66 @@ namespace YouTubester.IntegrationTests.Channels;
 public sealed class ChannelTests(TestFixture fixture)
 {
     [Fact]
+    public async Task PullChannel_Creates_Then_Updates_Channel_In_Database()
+    {
+        // Arrange
+        await fixture.ResetDbAsync();
+
+        const string inputChannelName = "CuteKittens";
+        const string channelId = "UC1234567890KITTENS";
+        const string uploadsIdV1 = "PL-UPLOADS-V1";
+        const string uploadsIdV2 = "PL-UPLOADS-V2";
+        const string nameV1 = "Cute Kittens";
+        const string nameV2 = "Cuter Kittens";
+        const string etagV1 = "etag-v1";
+        const string etagV2 = "etag-v2";
+
+        // First call returns initial snapshot, second call returns changed data
+        fixture.ApiFactory.MockYouTubeIntegration
+            .SetupSequence(x => x.GetChannelAsync(inputChannelName))
+            .ReturnsAsync(new ChannelDto(channelId, nameV1, uploadsIdV1, etagV1))
+            .ReturnsAsync(new ChannelDto(channelId, nameV2, uploadsIdV2, etagV2));
+
+        // --- Act #1: create ---
+        var createResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{inputChannelName}", null);
+        createResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert DB after creation
+        using (var scope = fixture.ApiServices.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+            var ch = await db.Channels.AsNoTracking().SingleOrDefaultAsync(c => c.ChannelId == channelId);
+
+            ch.Should().NotBeNull();
+            ch!.Name.Should().Be(nameV1);
+            ch.UploadsPlaylistId.Should().Be(uploadsIdV1);
+            ch.ETag.Should().Be(etagV1);
+            ch.LastUploadsCutoff.Should().BeNull(); // not set by pull
+            ch.UpdatedAt.Should().BeAfter(TestFixture.TestingDateTimeOffset); // sanity check it's set
+        }
+
+        // --- Act #2: update (different name, uploads, etag) ---
+        var updateResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{inputChannelName}", null);
+        updateResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert DB after update
+        using (var scope = fixture.ApiServices.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+            var ch = await db.Channels.AsNoTracking().SingleOrDefaultAsync(c => c.ChannelId == channelId);
+
+            ch.Should().NotBeNull();
+            ch!.Name.Should().Be(nameV2);
+            ch.UploadsPlaylistId.Should().Be(uploadsIdV2);
+            ch.ETag.Should().Be(etagV2);
+        }
+
+        // Verify the integration was called twice with the same input name
+        fixture.ApiFactory.MockYouTubeIntegration.Verify(
+            m => m.GetChannelAsync(inputChannelName), Times.Exactly(2));
+    }
+
+    [Fact]
     public async Task Sync_WithDummyChannelAndMockedYouTubeData_UpdatesDatabaseCorrectly()
     {
         // Arrange
@@ -89,8 +149,7 @@ public sealed class ChannelTests(TestFixture fixture)
 
         var mockPlaylistVideoIds = new Dictionary<string, List<string>>
         {
-            ["playlist123"] = ["video123", "video456"],
-            ["playlist456"] = ["video456"]
+            ["playlist123"] = ["video123", "video456"], ["playlist456"] = ["video456"]
         };
 
         // Setup MockYouTubeIntegration

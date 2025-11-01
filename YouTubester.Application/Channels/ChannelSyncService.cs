@@ -20,6 +20,63 @@ public sealed class ChannelSyncService(
 {
     private const int VideoBatchSize = 100;
 
+    /// <summary>
+    /// Pulls channel metadata from YouTube and persists a canonical Channel aggregate.
+    /// - Creates a new row if it doesn't exist.
+    /// - Otherwise applies a remote snapshot (Name, UploadsPlaylistId, ETag) and updates only if changed.
+    /// Returns the up-to-date aggregate.
+    /// </summary>
+    public async Task<Channel> PullChannelAsync(string channelName, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(channelName))
+        {
+            throw new ArgumentException("Channel name is required.", nameof(channelName));
+        }
+
+        // Pull canonical channel details (ChannelId, Title, UploadsPlaylistId, ETag)
+        var dto = await youTubeIntegration.GetChannelAsync(channelName);
+        if (dto is null)
+        {
+            throw new NotFoundException($"Channel '{channelName}' not found on YouTube.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Prefer lookup by canonical ChannelId
+        var existing = await channelRepository.GetChannelAsync(dto.Id, ct);
+
+        if (existing is null)
+        {
+            // New aggregate
+            var channel = Channel.Create(
+                dto.Id,
+                dto.Name,
+                dto.UploadsPlaylistId,
+                now,
+                null,
+                dto.ETag
+            );
+
+            await channelRepository.UpsertChannelAsync(channel, ct);
+            return channel;
+        }
+
+        // Apply remote snapshot via domain behavior; persist only if dirty.
+        var dirty = existing.ApplyRemoteSnapshot(
+            dto.Name,
+            dto.UploadsPlaylistId,
+            dto.ETag,
+            now
+        );
+
+        if (dirty)
+        {
+            await channelRepository.UpsertChannelAsync(existing, ct);
+        }
+
+        return existing;
+    }
+
     public async Task<ChannelSyncResult> SyncByNameAsync(string channelName, CancellationToken ct)
     {
         var channel = await channelRepository.GetChannelByNameAsync(channelName, ct) ??
