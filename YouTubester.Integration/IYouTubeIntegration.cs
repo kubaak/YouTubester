@@ -4,6 +4,8 @@ namespace YouTubester.Integration;
 
 public interface IYouTubeIntegration
 {
+    Task<ChannelDto?> GetChannelAsync(string channelName);
+
     IAsyncEnumerable<VideoDto> GetAllVideosAsync(
         string uploadsPlaylistId, DateTimeOffset? publishedAfter, CancellationToken cancellationToken);
 

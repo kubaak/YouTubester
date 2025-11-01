@@ -8,6 +8,73 @@ namespace YouTubester.Integration;
 public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<YouTubeIntegration> logger)
     : IYouTubeIntegration
 {
+    public async Task<ChannelDto?> GetChannelAsync(string channelName)
+    {
+        if (string.IsNullOrWhiteSpace(channelName))
+        {
+            return null;
+        }
+
+        try
+        {
+            // 1) Find the channelId by name using Search (most reliable if caller provides a human name)
+            var search = youTubeService.Search.List("snippet");
+            search.Q = channelName;
+            search.Type = "channel";
+            search.MaxResults = 1;
+
+            var searchRes = await search.ExecuteAsync();
+            var first = searchRes.Items?.FirstOrDefault();
+            var channelId = first?.Snippet?.ChannelId;
+
+            if (string.IsNullOrWhiteSpace(channelId))
+            {
+                logger.LogWarning("No channel found for name '{ChannelName}'", channelName);
+                return null;
+            }
+
+            // 2) Fetch channel details to get uploads playlist + title + ETag
+            var chReq = youTubeService.Channels.List("snippet,contentDetails");
+            chReq.Id = channelId;
+
+            var chRes = await chReq.ExecuteAsync();
+            var ch = chRes.Items?.FirstOrDefault();
+            if (ch is null)
+            {
+                logger.LogWarning("Channel id '{ChannelId}' not found when fetching details", channelId);
+                return null;
+            }
+
+            var uploads = ch.ContentDetails?.RelatedPlaylists?.Uploads;
+            if (string.IsNullOrWhiteSpace(uploads))
+            {
+                logger.LogWarning("Channel '{ChannelId}' has no uploads playlist", channelId);
+                return null;
+            }
+
+            var title = ch.Snippet?.Title ?? channelName;
+            var etag = ch.ETag;
+
+            return new ChannelDto(
+                channelId,
+                title,
+                uploads,
+                etag
+            );
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            logger.LogError(ex, "YouTube API error while getting channel for '{ChannelName}'", channelName);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while getting channel for '{ChannelName}'", channelName);
+            return null;
+        }
+    }
+
+
     public async IAsyncEnumerable<VideoDto> GetAllVideosAsync(
         string uploadsPlaylistId,
         DateTimeOffset? publishedAfter,

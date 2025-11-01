@@ -35,9 +35,10 @@ public sealed class ChannelRepository(YouTubesterDb db) : IChannelRepository
             return;
         }
 
-        channel.LastUploadsCutoff = cutoff;
-        channel.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+        if (channel.AdvanceUploadsCutoff(cutoff, DateTimeOffset.UtcNow))
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     public async Task UpsertChannelAsync(Channel channel, CancellationToken cancellationToken)
@@ -46,10 +47,8 @@ public sealed class ChannelRepository(YouTubesterDb db) : IChannelRepository
             .FirstOrDefaultAsync(c => c.ChannelId == channel.ChannelId, cancellationToken);
         if (existingChannel != null)
         {
-            existingChannel.Name = channel.Name;
-            existingChannel.UploadsPlaylistId = channel.UploadsPlaylistId;
-            existingChannel.ETag = channel.ETag;
-            existingChannel.UpdatedAt = DateTimeOffset.UtcNow;
+            existingChannel.ApplyRemoteSnapshot(channel.Name, channel.UploadsPlaylistId,
+                channel.ETag, DateTimeOffset.UtcNow);
         }
         else
         {
