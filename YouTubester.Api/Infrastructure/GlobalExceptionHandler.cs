@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using YouTubester.Application.Common;
 
 namespace YouTubester.Api.Infrastructure;
 
@@ -65,13 +65,13 @@ public sealed class GlobalExceptionHandler(
     {
         return ex switch
         {
-            Application.Common.NotFoundException nf
+            NotFoundException nf
                 => (StatusCodes.Status404NotFound, "Not Found", nf.Message),
 
-            Application.Common.ForbiddenException fb
+            ForbiddenException fb
                 => (StatusCodes.Status403Forbidden, "Forbidden", fb.Message),
 
-            Application.Common.ConflictException cf
+            ConflictException cf
                 => (StatusCodes.Status409Conflict, "Conflict", cf.Message),
 
             UnauthorizedAccessException

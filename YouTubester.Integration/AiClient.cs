@@ -9,7 +9,8 @@ public sealed class AiClient(HttpClient httpClient, IOptions<AiOptions> aiOption
 {
     private readonly AiOptions _ai = aiOptions.Value;
 
-    public async Task<(string Title, string Description, IEnumerable<string> tags)> SuggestMetadataAsync(string context, CancellationToken cancellationToken)
+    public async Task<(string Title, string Description, IEnumerable<string> tags)> SuggestMetadataAsync(string context,
+        CancellationToken cancellationToken)
     {
         logger.LogInformation("Getting suggested metadata for Title: {Context}", context);
         var prompt = $$"""
@@ -18,7 +19,7 @@ public sealed class AiClient(HttpClient httpClient, IOptions<AiOptions> aiOption
                        - title (≤100 chars, no ALL CAPS, punchy)
                        - description (≤5000 chars, engaging, include hashtags)
                        - tags (for better reach on YouTube search)
-                       
+
                        Context: {{context}}
 
                        Return: {"title":"...","description":"...", "tags":["...","..."]}
@@ -48,10 +49,12 @@ public sealed class AiClient(HttpClient httpClient, IOptions<AiOptions> aiOption
                 tags.Add(tagElement.GetString());
             }
         }
+
         return (title, desc, tags);
     }
 
-    public async Task<string?> SuggestReplyAsync(string videoTitle, IEnumerable<string> tags, string commentText, CancellationToken cancellationToken)
+    public async Task<string?> SuggestReplyAsync(string videoTitle, IEnumerable<string> tags, string commentText,
+        CancellationToken cancellationToken)
     {
         var prompt = $$"""
 
@@ -66,7 +69,14 @@ public sealed class AiClient(HttpClient httpClient, IOptions<AiOptions> aiOption
                        Return: {"reply":"..."}
                        """;
 
-        var body = new { model = _ai.Model, prompt, stream = false, format = "json", options = new { temperature = 0.7, num_ctx = 4096 } };
+        var body = new
+        {
+            model = _ai.Model,
+            prompt,
+            stream = false,
+            format = "json",
+            options = new { temperature = 0.7, num_ctx = 4096 }
+        };
         var res = await httpClient.PostAsJsonAsync("/api/generate", body, cancellationToken);
         res.EnsureSuccessStatusCode();
         using var env = JsonDocument.Parse(await res.Content.ReadAsStringAsync(cancellationToken));

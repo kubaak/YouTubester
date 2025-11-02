@@ -1,3 +1,4 @@
+using System.Reflection;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using YouTubester.Api.Infrastructure;
@@ -16,7 +17,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
     {
@@ -69,7 +70,7 @@ app.Run();
 // Make Program class accessible for integration testing
 namespace YouTubester.Api
 {
-    public partial class Program
+    public class Program
     {
     }
 }

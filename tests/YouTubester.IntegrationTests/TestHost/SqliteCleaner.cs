@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 
 namespace YouTubester.IntegrationTests.TestHost;
@@ -6,7 +7,7 @@ public static class SqliteCleaner
 {
     public static async Task CleanAsync(DbConnection connection)
     {
-        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        var wasOpen = connection.State == ConnectionState.Open;
         if (!wasOpen)
         {
             await connection.OpenAsync();

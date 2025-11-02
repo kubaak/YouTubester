@@ -73,6 +73,8 @@ public partial class CommentScanWorker(
                     if (isCommentAllowed.HasValue)
                     {
                         video.SetCommentsAllowed(isCommentAllowed.Value);
+                        //todo batch
+                        await videoRepository.UpsertAsync([video], cancellationToken);
                     }
                 }
 

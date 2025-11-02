@@ -1,6 +1,6 @@
-namespace YouTubester.Application.Jobs;
-
 using Hangfire;
+
+namespace YouTubester.Application.Jobs;
 
 public sealed class CopyVideoTemplateJob(IVideoTemplatingService videoTemplatingService)
 {
