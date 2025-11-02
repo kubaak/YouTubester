@@ -1,6 +1,7 @@
 using Google.Apis.YouTube.v3;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using YouTubester.Integration.Configuration;
 
@@ -29,7 +30,13 @@ public static class ServiceCollectionExtensions
                 var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
                 http.BaseAddress = new Uri(ai.Endpoint);
             })
-            .AddStandardResilienceHandler();
+            .AddStandardResilienceHandler(options =>
+                {
+                    options.AttemptTimeout = new HttpTimeoutStrategyOptions { Timeout = TimeSpan.FromSeconds(90) };
+                    options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(180);
+                    options.TotalRequestTimeout = new HttpTimeoutStrategyOptions { Timeout = TimeSpan.FromMinutes(5) };
+                }
+            );
 
         return services;
     }

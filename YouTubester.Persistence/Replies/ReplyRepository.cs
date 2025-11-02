@@ -6,13 +6,16 @@ namespace YouTubester.Persistence.Replies;
 public class ReplyRepository(YouTubesterDb db) : IReplyRepository
 {
     public async Task<IEnumerable<Reply>> GetRepliesForApprovalAsync(CancellationToken cancellationToken)
-        => await db.Replies.AsNoTracking()
+    {
+        return await db.Replies.AsNoTracking()
             .Where(r => r.Status == ReplyStatus.Suggested)
-            .OrderByDescending(d => d.PostedAt).
-            ToListAsync(cancellationToken);
+            .OrderByDescending(d => d.PostedAt).ToListAsync(cancellationToken);
+    }
 
     public async Task<Reply?> GetReplyAsync(string commentId, CancellationToken cancellationToken)
-        => await db.Replies.AsNoTracking().FirstOrDefaultAsync(d => d.CommentId == commentId, cancellationToken);
+    {
+        return await db.Replies.AsNoTracking().FirstOrDefaultAsync(d => d.CommentId == commentId, cancellationToken);
+    }
 
     public async Task AddOrUpdateReplyAsync(Reply reply, CancellationToken ct)
     {
@@ -40,14 +43,18 @@ public class ReplyRepository(YouTubesterDb db) : IReplyRepository
             db.Replies.Remove(entity);
             await db.SaveChangesAsync(cancellationToken);
         }
+
         return entity;
     }
 
-    public async Task<List<(string CommentId, ReplyStatus Status)>> LoadStatusesAsync(IEnumerable<string> ids, CancellationToken ct)
-        => await db.Replies.AsNoTracking()
+    public async Task<List<(string CommentId, ReplyStatus Status)>> LoadStatusesAsync(IEnumerable<string> ids,
+        CancellationToken ct)
+    {
+        return await db.Replies.AsNoTracking()
             .Where(r => ids.Contains(r.CommentId))
             .Select(r => new ValueTuple<string, ReplyStatus>(r.CommentId, r.Status))
             .ToListAsync(ct);
+    }
 
     public async Task<string[]> IgnoreManyAsync(IEnumerable<string> ids, CancellationToken ct)
     {
@@ -63,4 +70,3 @@ public class ReplyRepository(YouTubesterDb db) : IReplyRepository
         return list;
     }
 }
-

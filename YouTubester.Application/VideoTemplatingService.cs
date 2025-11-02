@@ -1,7 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using YouTubester.Domain;
 using YouTubester.Integration;
-using YouTubester.Persistence;
 using YouTubester.Persistence.Playlists;
 using YouTubester.Persistence.Videos;
 

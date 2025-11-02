@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using AutoFixture;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +11,7 @@ using YouTubester.Integration.Dtos;
 using YouTubester.IntegrationTests.TestHost;
 using YouTubester.Persistence;
 
-namespace YouTubester.IntegrationTests.Channels;
+namespace YouTubester.IntegrationTests;
 
 [Collection(nameof(TestCollection))]
 public sealed class ChannelTests(TestFixture fixture)
@@ -149,7 +148,8 @@ public sealed class ChannelTests(TestFixture fixture)
 
         var mockPlaylistVideoIds = new Dictionary<string, List<string>>
         {
-            ["playlist123"] = ["video123", "video456"], ["playlist456"] = ["video456"]
+            ["playlist123"] = ["video123", "video456"],
+            ["playlist456"] = ["video456"]
         };
 
         // Setup MockYouTubeIntegration

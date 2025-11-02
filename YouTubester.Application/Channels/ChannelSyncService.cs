@@ -34,11 +34,8 @@ public sealed class ChannelSyncService(
         }
 
         // Pull canonical channel details (ChannelId, Title, UploadsPlaylistId, ETag)
-        var dto = await youTubeIntegration.GetChannelAsync(channelName);
-        if (dto is null)
-        {
-            throw new NotFoundException($"Channel '{channelName}' not found on YouTube.");
-        }
+        var dto = await youTubeIntegration.GetChannelAsync(channelName) ??
+                  throw new NotFoundException($"Channel '{channelName}' not found on YouTube.");
 
         var now = DateTimeOffset.UtcNow;
 

@@ -1,5 +1,4 @@
 using Hangfire;
-using Hangfire.Storage.SQLite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,14 +6,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
-using YouTubester.Application;
-using YouTubester.Application.Jobs;
 using YouTubester.Integration;
 using YouTubester.Persistence;
-using YouTubester.Persistence.Channels;
-using YouTubester.Persistence.Playlists;
-using YouTubester.Persistence.Replies;
-using YouTubester.Persistence.Videos;
 using YouTubester.Worker;
 
 namespace YouTubester.IntegrationTests.TestHost;

@@ -1,4 +1,8 @@
-﻿using Google.Apis.YouTube.v3;
+﻿using System.Net;
+using System.Runtime.CompilerServices;
+using System.Xml;
+using Google;
+using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
 using Microsoft.Extensions.Logging;
 using YouTubester.Integration.Dtos;
@@ -62,7 +66,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
                 etag
             );
         }
-        catch (Google.GoogleApiException ex)
+        catch (GoogleApiException ex)
         {
             logger.LogError(ex, "YouTube API error while getting channel for '{ChannelName}'", channelName);
             return null;
@@ -78,8 +82,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
     public async IAsyncEnumerable<VideoDto> GetAllVideosAsync(
         string uploadsPlaylistId,
         DateTimeOffset? publishedAfter,
-        [System.Runtime.CompilerServices.EnumeratorCancellation]
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         string? page = null;
 
@@ -161,7 +164,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
                     .Where(t => !string.IsNullOrWhiteSpace(t));
 
                 var iso = video.ContentDetails?.Duration ?? "PT0S";
-                var duration = System.Xml.XmlConvert.ToTimeSpan(iso);
+                var duration = XmlConvert.ToTimeSpan(iso);
 
                 var privacy = video.Status?.PrivacyStatus ?? "private";
                 var publishAt = video.Status?.PublishAtDateTimeOffset;
@@ -219,10 +222,10 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
             await commentsRequest.ExecuteAsync(cancellationToken);
             return true; // Comments allowed if request succeeds
         }
-        catch (Google.GoogleApiException ex)
+        catch (GoogleApiException ex)
         {
             // Check if the error is specifically about comments being disabled
-            if (ex.HttpStatusCode == System.Net.HttpStatusCode.Forbidden &&
+            if (ex.HttpStatusCode == HttpStatusCode.Forbidden &&
                 ex.Error?.Errors?.Any(e => e.Reason == "commentsDisabled") == true)
             {
                 return false;
@@ -266,7 +269,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
             var description = video.Snippet?.Description ?? string.Empty;
             var tags = video.Snippet?.Tags?.Where(t => !string.IsNullOrWhiteSpace(t));
             var iso = video.ContentDetails?.Duration ?? "PT0S";
-            var duration = System.Xml.XmlConvert.ToTimeSpan(iso);
+            var duration = XmlConvert.ToTimeSpan(iso);
             var privacy = video.Status?.PrivacyStatus ?? "private";
             var publishAt = video.Status?.PublishAtDateTimeOffset;
             var isScheduled = string.Equals(privacy, "private", StringComparison.OrdinalIgnoreCase)
@@ -298,8 +301,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
     public async IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
         string channelId,
         string videoId,
-        [System.Runtime.CompilerServices.EnumeratorCancellation]
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         string? page = null;
         do
@@ -493,8 +495,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
 
     public async IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(
         string channelId,
-        [System.Runtime.CompilerServices.EnumeratorCancellation]
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         string? page = null;
         do
@@ -527,8 +528,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
 
     public async IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(
         string playlistId,
-        [System.Runtime.CompilerServices.EnumeratorCancellation]
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         string? page = null;
         do
@@ -563,8 +563,7 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
     public async IAsyncEnumerable<string> GetVideoIdsNewerThanAsync(
         string channelId,
         DateTimeOffset? cutoff,
-        [System.Runtime.CompilerServices.EnumeratorCancellation]
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Get the uploads playlist ID for the channel
         var channelRequest = youTubeService.Channels.List("contentDetails");
