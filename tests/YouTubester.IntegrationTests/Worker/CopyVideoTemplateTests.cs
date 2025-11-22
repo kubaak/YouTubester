@@ -29,6 +29,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         var targetVideo = GetTargetVideo();
 
         const string channelId = "Channel-XYZ";
+        const string userId = MockAuthenticationExtensions.TestSub;
         var playlistA =
             Playlist.Create("PL-A", channelId, "Playlist A", TestFixture.TestingDateTimeOffset, "etag-pl-a");
         var playlistB =
@@ -40,7 +41,14 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         using (var scope = fixture.ApiServices.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
-            await dbContext.Channels.AddAsync(Channel.Create(channelId, "Channel A", "UploadPlaylistId",
+            var user = User.Create(
+                userId,
+                MockAuthenticationExtensions.TestEmail,
+                MockAuthenticationExtensions.TestName,
+                MockAuthenticationExtensions.TestPicture,
+                TestFixture.TestingDateTimeOffset);
+            await dbContext.Users.AddAsync(user);
+            await dbContext.Channels.AddAsync(Channel.Create(channelId, userId, "Channel A", "UploadPlaylistId",
                 TestFixture.TestingDateTimeOffset));
             dbContext.Videos.AddRange(sourceVideo, targetVideo);
             dbContext.Playlists.AddRange(playlistA, playlistB);
@@ -136,6 +144,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         var targetVideo = GetTargetVideo();
 
         const string channelId = "Channel-XYZ";
+        const string userId = MockAuthenticationExtensions.TestSub;
         var playlistA =
             Playlist.Create("PL-A", channelId, "Playlist A", TestFixture.TestingDateTimeOffset, "etag-pl-a");
         var playlistB =
@@ -147,7 +156,14 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         using (var scope = fixture.ApiServices.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
-            await dbContext.Channels.AddAsync(Channel.Create(channelId, "Channel A", "UploadPlaylistId",
+            var user = User.Create(
+                userId,
+                MockAuthenticationExtensions.TestEmail,
+                MockAuthenticationExtensions.TestName,
+                MockAuthenticationExtensions.TestPicture,
+                TestFixture.TestingDateTimeOffset);
+            await dbContext.Users.AddAsync(user);
+            await dbContext.Channels.AddAsync(Channel.Create(channelId, userId, "Channel A", "UploadPlaylistId",
                 TestFixture.TestingDateTimeOffset));
             dbContext.Videos.AddRange(sourceVideo, targetVideo);
             dbContext.Playlists.AddRange(playlistA, playlistB);

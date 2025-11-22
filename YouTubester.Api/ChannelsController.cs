@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Application.Channels;
@@ -10,36 +12,53 @@ namespace YouTubester.Api;
 [Route("api/channels")]
 [Tags("Channels")]
 [Authorize]
-public sealed class ChannelsController(IChannelSyncService channelSyncService) : ControllerBase
+public sealed class ChannelsController(IChannelSyncService channelSyncService, IBackgroundJobClient backgroundJobClient)
+    : ControllerBase
 {
     /// <summary>
     /// Pulls channel metadata from YouTube (by name)
     /// </summary>
     /// <param name="channelName">Channel name</param>
-    /// <param name="ct">Cancellation token</param>
+    /// <param name="cancellationToken"></param>
     /// <returns>The persisted <see cref="Channel"/>.</returns>
     [HttpPost("pull/{channelName}")]
     [ProducesResponseType(typeof(Channel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<Channel>> PullAsync([FromRoute] string channelName, CancellationToken ct)
+    public async Task<ActionResult<Channel>> PullAsync([FromRoute] string channelName,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(channelName))
         {
             return ValidationProblem("'channelName' is required.");
         }
 
-        var channel = await channelSyncService.PullChannelAsync(channelName, ct);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        var channel = await channelSyncService.PullChannelAsync(userId, channelName, cancellationToken);
         return Ok(channel);
     }
 
-
-    /// <summary>Runs full sync for a channel by name.</summary>
-    [HttpPost("sync/{channelName}")]
-    [ProducesResponseType(typeof(ChannelSyncResult), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ChannelSyncResult>> SyncAsync([FromRoute] string channelName, CancellationToken ct)
+    /// <summary>
+    /// Schedules a background sync of all channels owned by the currently signed-in user.
+    /// </summary>
+    [HttpPost("sync")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public IActionResult SyncCurrentUsersChannels()
     {
-        var result = await channelSyncService.SyncByNameAsync(channelName, ct);
-        return Ok(result);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        backgroundJobClient.Enqueue<IChannelSyncService>(
+            service => service.SyncChannelsForUserAsync(userId, CancellationToken.None));
+
+        return Accepted(new { status = "scheduled" });
     }
 }

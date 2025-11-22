@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Moq;
 using Xunit;
 using YouTubester.Application;
 using YouTubester.Application.Contracts;
