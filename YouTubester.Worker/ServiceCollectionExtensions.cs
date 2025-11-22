@@ -1,11 +1,13 @@
 using Hangfire;
 using YouTubester.Application;
+using YouTubester.Application.Channels;
 using YouTubester.Application.Jobs;
 using YouTubester.Integration;
 using YouTubester.Persistence;
 using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Playlists;
 using YouTubester.Persistence.Replies;
+using YouTubester.Persistence.Users;
 using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Worker;
@@ -36,8 +38,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVideoRepository, VideoRepository>();
         services.AddScoped<IPlaylistRepository, PlaylistRepository>();
         services.AddScoped<IReplyRepository, ReplyRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUserTokenStore, UserTokenStore>();
 
         // App services & jobs
+        services.AddScoped<IChannelSyncService, ChannelSyncService>();
         services.AddScoped<IVideoTemplatingService, VideoTemplatingService>();
         services.AddScoped<PostApprovedRepliesJob>();
         services.AddScoped<CopyVideoTemplateJob>();

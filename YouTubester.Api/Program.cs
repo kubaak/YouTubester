@@ -9,6 +9,7 @@ using YouTubester.Persistence;
 using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Playlists;
 using YouTubester.Persistence.Replies;
+using YouTubester.Persistence.Users;
 using YouTubester.Persistence.Videos;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +24,8 @@ builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddScoped<IChannelRepository, ChannelRepository>();
 builder.Services.AddScoped<IVideoRepository, VideoRepository>();
 builder.Services.AddScoped<IPlaylistRepository, PlaylistRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserTokenStore, UserTokenStore>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<IReplyService, ReplyService>();
 builder.Services.AddScoped<IVideoService, VideoService>();

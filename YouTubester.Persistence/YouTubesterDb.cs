@@ -6,6 +6,8 @@ namespace YouTubester.Persistence;
 
 public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(options)
 {
+    public DbSet<User> Users => Set<User>();
+    public DbSet<UserTokens> UserTokens => Set<UserTokens>();
     public DbSet<Reply> Replies => Set<Reply>();
     public DbSet<Channel> Channels => Set<Channel>();
     public DbSet<Video> Videos => Set<Video>();
@@ -25,7 +27,26 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
             v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
 
+        b.Entity<User>().HasKey(x => x.Id);
+        b.Entity<User>().Property(x => x.CreatedAt).HasConversion(
+            v => v.UtcDateTime,
+            v => new DateTimeOffset(v, TimeSpan.Zero));
+        b.Entity<User>().Property(x => x.LastLoginAt).HasConversion(
+            v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
+            v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
+
+        b.Entity<UserTokens>().HasKey(x => x.UserId);
+        b.Entity<UserTokens>().Property(x => x.ExpiresAt).HasConversion(
+            v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
+            v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
+        b.Entity<UserTokens>()
+            .HasOne<User>()
+            .WithOne()
+            .HasForeignKey<UserTokens>(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         b.Entity<Channel>().HasKey(x => x.ChannelId);
+        b.Entity<Channel>().Property(x => x.UserId).IsRequired();
         b.Entity<Channel>().Property(x => x.ETag).HasMaxLength(128);
         b.Entity<Channel>().Property(x => x.UpdatedAt).HasConversion(
             v => v.UtcDateTime,
@@ -33,6 +54,11 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
         b.Entity<Channel>().Property(x => x.LastUploadsCutoff).HasConversion(
             v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
+        // b.Entity<Channel>()
+        //     .HasOne<User>()
+        //     .WithMany()
+        //     .HasForeignKey(x => x.UserId)
+        //     .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<Video>().HasKey(v => v.VideoId);
         b.Entity<Video>().HasIndex(x => x.UpdatedAt);

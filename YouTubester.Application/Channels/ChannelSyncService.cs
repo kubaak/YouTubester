@@ -4,6 +4,7 @@ using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence.Channels;
 using YouTubester.Persistence.Playlists;
+using YouTubester.Persistence.Users;
 using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application.Channels;
@@ -16,71 +17,114 @@ public sealed class ChannelSyncService(
     IYouTubeIntegration youTubeIntegration,
     IVideoRepository videoRepository,
     IChannelRepository channelRepository,
+    IUserTokenStore userTokenStore,
     ILogger<ChannelSyncService> logger) : IChannelSyncService
 {
     private const int VideoBatchSize = 100;
 
     /// <summary>
-    /// Pulls channel metadata from YouTube and persists a canonical Channel aggregate.
-    /// - Creates a new row if it doesn't exist.
+    /// Pulls channel metadata from YouTube and persists a canonical Channel aggregate for the given user.
+    /// - Creates a new row if it does not exist.
     /// - Otherwise applies a remote snapshot (Name, UploadsPlaylistId, ETag) and updates only if changed.
     /// Returns the up-to-date aggregate.
     /// </summary>
-    public async Task<Channel> PullChannelAsync(string channelName, CancellationToken ct)
+    public async Task<Channel> PullChannelAsync(string userId, string channelName, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
         if (string.IsNullOrWhiteSpace(channelName))
         {
             throw new ArgumentException("Channel name is required.", nameof(channelName));
         }
 
         // Pull canonical channel details (ChannelId, Title, UploadsPlaylistId, ETag)
-        var dto = await youTubeIntegration.GetChannelAsync(channelName) ??
-                  throw new NotFoundException($"Channel '{channelName}' not found on YouTube.");
+        var channelDto = await youTubeIntegration.GetChannelAsync(channelName) ??
+                         throw new NotFoundException($"Channel '{channelName}' not found on YouTube.");
 
         var now = DateTimeOffset.UtcNow;
 
         // Prefer lookup by canonical ChannelId
-        var existing = await channelRepository.GetChannelAsync(dto.Id, ct);
+        var existingChannel = await channelRepository.GetChannelAsync(channelDto.Id, cancellationToken);
 
-        if (existing is null)
+        if (existingChannel is null)
         {
             // New aggregate
             var channel = Channel.Create(
-                dto.Id,
-                dto.Name,
-                dto.UploadsPlaylistId,
+                channelDto.Id,
+                userId,
+                channelDto.Name,
+                channelDto.UploadsPlaylistId,
                 now,
                 null,
-                dto.ETag
+                channelDto.ETag
             );
 
-            await channelRepository.UpsertChannelAsync(channel, ct);
+            await channelRepository.UpsertChannelAsync(channel, cancellationToken);
             return channel;
         }
 
         // Apply remote snapshot via domain behavior; persist only if dirty.
-        var dirty = existing.ApplyRemoteSnapshot(
-            dto.Name,
-            dto.UploadsPlaylistId,
-            dto.ETag,
+        var dirty = existingChannel.ApplyRemoteSnapshot(
+            channelDto.Name,
+            channelDto.UploadsPlaylistId,
+            channelDto.ETag,
             now
         );
 
         if (dirty)
         {
-            await channelRepository.UpsertChannelAsync(existing, ct);
+            await channelRepository.UpsertChannelAsync(existingChannel, cancellationToken);
         }
 
-        return existing;
+        return existingChannel;
     }
 
-    public async Task<ChannelSyncResult> SyncByNameAsync(string channelName, CancellationToken ct)
+    public async Task<ChannelSyncResult> SyncByNameAsync(string userId, string channelName,
+        CancellationToken cancellationToken)
     {
-        var channel = await channelRepository.GetChannelByNameAsync(channelName, ct) ??
+        if (string.IsNullOrWhiteSpace(channelName))
+        {
+            throw new ArgumentException("Channel name is required.", nameof(channelName));
+        }
+
+        var channel = await channelRepository.GetChannelByNameAsync(channelName, cancellationToken) ??
                       throw new NotFoundException($"Channel '{channelName}' not found.");
 
         var now = DateTimeOffset.UtcNow;
-        return await SyncInternalAsync(channel, now, ct);
+        return await SyncInternalAsync(channel, now, cancellationToken);
+    }
+
+    public async Task SyncChannelsForUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
+        var tokens = await userTokenStore.GetGoogleTokensAsync(userId, cancellationToken);
+        if (tokens is null || tokens.ExpiresAt < DateTimeOffset.UtcNow)
+        {
+            logger.LogWarning(
+                "Skipping channel sync for user {UserId} because refresh token is stored or it is too old", userId);
+            return;
+        }
+
+        var channels = await channelRepository.GetChannelsForUserAsync(userId, cancellationToken);
+        if (channels.Count == 0)
+        {
+            logger.LogInformation("No channels found for user {UserId}; nothing to sync", userId);
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var channel in channels)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await SyncInternalAsync(channel, now, cancellationToken);
+        }
     }
 
     private async Task<ChannelSyncResult> SyncInternalAsync(Channel channel, DateTimeOffset now, CancellationToken ct)

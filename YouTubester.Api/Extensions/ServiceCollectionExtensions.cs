@@ -1,8 +1,10 @@
 using System.Reflection;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.OpenApi.Models;
+using YouTubester.Persistence.Users;
 
 namespace YouTubester.Api.Extensions;
 
@@ -65,12 +67,58 @@ public static class ServiceCollectionExtensions
                 o.ClientId = configuration["GoogleAuth:ClientId"]!;
                 o.ClientSecret = configuration["GoogleAuth:ClientSecret"]!;
                 o.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                o.SaveTokens = false;
+                o.SaveTokens = true;
                 o.CallbackPath = "/auth/callback/google";
                 o.CorrelationCookie.SameSite = SameSiteMode.None;
                 o.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
                 o.Scope.Add("profile");
                 o.ClaimActions.MapJsonKey("picture", "picture");
+
+                o.Events = new OAuthEvents
+                {
+                    OnTicketReceived = async context =>
+                    {
+                        var principal = context.Principal;
+                        if (principal is null)
+                        {
+                            return;
+                        }
+
+                        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                        if (string.IsNullOrWhiteSpace(userId))
+                        {
+                            return;
+                        }
+
+                        var email = principal.FindFirstValue(ClaimTypes.Email);
+                        var name = principal.Identity?.Name;
+                        var picture = principal.FindFirst("picture")?.Value;
+
+                        var accessToken = context.Properties?.GetTokenValue("access_token");
+                        var refreshToken = context.Properties?.GetTokenValue("refresh_token");
+                        var expiresAtRaw = context.Properties?.GetTokenValue("expires_at");
+                        DateTimeOffset? expiresAt = null;
+                        if (!string.IsNullOrWhiteSpace(expiresAtRaw) &&
+                            DateTimeOffset.TryParse(expiresAtRaw, out var parsedExpiresAt))
+                        {
+                            expiresAt = parsedExpiresAt;
+                        }
+
+                        var requestServices = context.HttpContext.RequestServices;
+                        var userRepository = requestServices.GetRequiredService<IUserRepository>();
+                        var userTokenStore = requestServices.GetRequiredService<IUserTokenStore>();
+                        var now = DateTimeOffset.UtcNow;
+                        var cancellationToken = context.HttpContext.RequestAborted;
+
+                        await userRepository.UpsertUserAsync(userId, email, name, picture, now, cancellationToken);
+                        await userTokenStore.UpsertGoogleTokenAsync(
+                            userId,
+                            accessToken,
+                            refreshToken,
+                            expiresAt,
+                            cancellationToken);
+                    }
+                };
             });
 
         services.AddAuthorization();

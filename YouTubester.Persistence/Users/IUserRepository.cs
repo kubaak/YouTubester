@@ -1,0 +1,16 @@
+using YouTubester.Domain;
+
+namespace YouTubester.Persistence.Users;
+
+public interface IUserRepository
+{
+    Task<User> UpsertUserAsync(
+        string userId,
+        string? email,
+        string? name,
+        string? picture,
+        DateTimeOffset loginAt,
+        CancellationToken cancellationToken);
+
+    Task<User?> GetByIdAsync(string userId, CancellationToken cancellationToken);
+}

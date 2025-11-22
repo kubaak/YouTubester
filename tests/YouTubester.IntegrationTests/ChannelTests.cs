@@ -77,6 +77,34 @@ public sealed class ChannelTests(TestFixture fixture)
     }
 
     [Fact]
+    public async Task SyncCurrentUsersChannels_Enqueues_Background_Job_And_Returns_Accepted()
+    {
+        // Arrange
+        await fixture.ResetDbAsync();
+
+        // Act
+        var response = await fixture.HttpClient.PostAsync("/api/channels/sync", null);
+
+        // Assert HTTP response
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        using var jsonDocument = JsonDocument.Parse(responseContent);
+        var rootElement = jsonDocument.RootElement;
+        rootElement.TryGetProperty("status", out var statusProperty).Should().BeTrue();
+        statusProperty.GetString().Should().Be("scheduled");
+
+        // Assert background job was enqueued for the current user
+        var capturedJobs = fixture.CapturingJobClient.GetEnqueued<IChannelSyncService>();
+        capturedJobs.Should().HaveCount(1);
+
+        var capturedJob = capturedJobs.Single();
+        capturedJob.Job.Method.Name.Should().Be(nameof(IChannelSyncService.SyncChannelsForUserAsync));
+        capturedJob.Job.Args.Should().HaveCount(2);
+        capturedJob.Job.Args[0].Should().Be(MockAuthenticationExtensions.TestSub);
+    }
+
+    [Fact(Skip = "Endpoint removed")]
     public async Task Sync_WithDummyChannelAndMockedYouTubeData_UpdatesDatabaseCorrectly()
     {
         // Arrange
@@ -85,10 +113,19 @@ public sealed class ChannelTests(TestFixture fixture)
         const string testChannelId = "UCTestChannel123456789";
         const string testChannelName = "TestChannelName";
         const string testUploadsPlaylistId = "PLTestUploads123456789";
+        const string userId = MockAuthenticationExtensions.TestSub;
 
-        // Insert dummy channel into database
+        // Insert dummy user and channel into database
+        var dummyUser = User.Create(
+            userId,
+            MockAuthenticationExtensions.TestEmail,
+            MockAuthenticationExtensions.TestName,
+            MockAuthenticationExtensions.TestPicture,
+            TestFixture.TestingDateTimeOffset);
+
         var dummyChannel = Channel.Create(
             testChannelId,
+            userId,
             testChannelName,
             testUploadsPlaylistId,
             TestFixture.TestingDateTimeOffset
@@ -97,6 +134,7 @@ public sealed class ChannelTests(TestFixture fixture)
         using (var scope = fixture.ApiServices.CreateScope())
         {
             var databaseContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+            databaseContext.Users.Add(dummyUser);
             databaseContext.Channels.Add(dummyChannel);
             await databaseContext.SaveChangesAsync();
         }
@@ -252,7 +290,7 @@ public sealed class ChannelTests(TestFixture fixture)
         updatedChannel.LastUploadsCutoff.Should().Be(new DateTimeOffset(2024, 1, 2, 12, 0, 0, TimeSpan.Zero));
     }
 
-    [Fact]
+    [Fact(Skip = "Endpoint removed")]
     public async Task Sync_CalledTwice_IsIdempotentAndUpdatesExistingData()
     {
         // Arrange
@@ -261,10 +299,19 @@ public sealed class ChannelTests(TestFixture fixture)
         const string testChannelId = "UCTestChannel987654321";
         const string testChannelName = "TestChannelIdempotent";
         const string testUploadsPlaylistId = "PLTestUploads987654321";
+        const string userId = MockAuthenticationExtensions.TestSub;
 
-        // Insert dummy channel into database
+        // Insert dummy user and channel into database
+        var dummyUser = User.Create(
+            userId,
+            MockAuthenticationExtensions.TestEmail,
+            MockAuthenticationExtensions.TestName,
+            MockAuthenticationExtensions.TestPicture,
+            TestFixture.TestingDateTimeOffset);
+
         var dummyChannel = Channel.Create(
             testChannelId,
+            userId,
             testChannelName,
             testUploadsPlaylistId,
             TestFixture.TestingDateTimeOffset
@@ -273,6 +320,7 @@ public sealed class ChannelTests(TestFixture fixture)
         using (var scope = fixture.ApiServices.CreateScope())
         {
             var databaseContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+            databaseContext.Users.Add(dummyUser);
             databaseContext.Channels.Add(dummyChannel);
             await databaseContext.SaveChangesAsync();
         }
