@@ -61,8 +61,15 @@ public class ReplyService(IReplyRepository repository, IBackgroundJobClient back
     }
 
     public async Task<BatchDecisionResultDto> ApplyBatchAsync(
-        IEnumerable<DraftDecisionDto> decisions, CancellationToken cancellationToken)
+        string userId,
+        IEnumerable<DraftDecisionDto> decisions,
+        CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
         var results = new List<DraftDecisionResultDto>();
         int ok = 0, fail = 0;
 
@@ -86,9 +93,9 @@ public class ReplyService(IReplyRepository repository, IBackgroundJobClient back
                 }
 
                 draft.ApproveText(d.ApprovedText, DateTimeOffset.Now);
-                //todo from configuration
-                backgroundJobClient.Schedule<PostApprovedRepliesJob>(
-                    j => j.Run(draft.CommentId, JobCancellationToken.Null), TimeSpan.FromSeconds(10));
+
+                backgroundJobClient.Enqueue<PostApprovedRepliesJob>(
+                    job => job.Run(userId, draft.CommentId, JobCancellationToken.Null));
 
                 await repository.AddOrUpdateReplyAsync(draft, cancellationToken);
                 results.Add(new DraftDecisionResultDto(d.CommentId, true));

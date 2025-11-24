@@ -7,7 +7,7 @@ namespace YouTubester.Persistence;
 public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
-    public DbSet<UserTokens> UserTokens => Set<UserTokens>();
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
     public DbSet<Reply> Replies => Set<Reply>();
     public DbSet<Channel> Channels => Set<Channel>();
     public DbSet<Video> Videos => Set<Video>();
@@ -35,14 +35,14 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
             v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
 
-        b.Entity<UserTokens>().HasKey(x => x.UserId);
-        b.Entity<UserTokens>().Property(x => x.ExpiresAt).HasConversion(
+        b.Entity<UserToken>().HasKey(x => x.UserId);
+        b.Entity<UserToken>().Property(x => x.ExpiresAt).HasConversion(
             v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
-        b.Entity<UserTokens>()
+        b.Entity<UserToken>()
             .HasOne<User>()
             .WithOne()
-            .HasForeignKey<UserTokens>(x => x.UserId)
+            .HasForeignKey<UserToken>(x => x.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<Channel>().HasKey(x => x.ChannelId);

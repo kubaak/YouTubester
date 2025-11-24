@@ -40,7 +40,7 @@ This separation ensures portability and demonstrates a clean architecture approa
 
 ### 1. Clone and restore
 ```bash
-git clone https://github.com/yourusername/YouTubester.git
+git clone https://github.com/kubaak/YouTubester.git
 cd YouTubester
 dotnet restore
 ```

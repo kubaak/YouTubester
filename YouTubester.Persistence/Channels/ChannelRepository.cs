@@ -27,13 +27,6 @@ public sealed class ChannelRepository(YouTubesterDb db) : IChannelRepository
             .FirstOrDefaultAsync(c => c.ChannelId == channelId, cancellationToken);
     }
 
-    public async Task<Channel?> GetChannelByNameAsync(string channelName, CancellationToken cancellationToken)
-    {
-        return await db.Set<Channel>()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Name == channelName, cancellationToken);
-    }
-
     public async Task SetUploadsCutoffAsync(string channelId, DateTimeOffset cutoff,
         CancellationToken cancellationToken)
     {

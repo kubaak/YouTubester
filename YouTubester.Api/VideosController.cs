@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,7 +55,14 @@ public sealed class VideosController(
             return BadRequest(new { error = "SourceVideoId and TargetVideoId must be different." });
         }
 
-        var res = jobClient.Enqueue<CopyVideoTemplateJob>(j => j.Run(request, JobCancellationToken.Null));
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        var res = jobClient.Enqueue<CopyVideoTemplateJob>(
+            j => j.Run(userId, request, JobCancellationToken.Null));
         return Ok(res);
     }
 

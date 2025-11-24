@@ -3,6 +3,7 @@ using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Application.Channels;
+using YouTubester.Application.Contracts.Channels;
 using YouTubester.Domain;
 
 namespace YouTubester.Api;
@@ -12,9 +13,30 @@ namespace YouTubester.Api;
 [Route("api/channels")]
 [Tags("Channels")]
 [Authorize]
-public sealed class ChannelsController(IChannelSyncService channelSyncService, IBackgroundJobClient backgroundJobClient)
+public sealed class ChannelsController(
+    IChannelSyncService channelSyncService,
+    IBackgroundJobClient backgroundJobClient)
     : ControllerBase
 {
+    /// <summary>
+    /// Returns all YouTube channels available to pull for the current user.
+    /// </summary>
+    [HttpGet("available")]
+    [ProducesResponseType(typeof(IReadOnlyList<AvailableChannelDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<AvailableChannelDto>>> GetAvailableChannelsAsync(
+        CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        var channels = await channelSyncService.GetAvailableYoutubeChannelsForUserAsync(userId, cancellationToken);
+        return Ok(channels);
+    }
+
     /// <summary>
     /// Pulls channel metadata from YouTube (by name)
     /// </summary>

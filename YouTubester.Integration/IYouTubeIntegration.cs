@@ -4,29 +4,53 @@ namespace YouTubester.Integration;
 
 public interface IYouTubeIntegration
 {
-    Task<ChannelDto?> GetChannelAsync(string channelName);
+    Task<ChannelDto?> GetChannelAsync(string userId, string channelName, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId, CancellationToken cancellationToken);
 
     IAsyncEnumerable<VideoDto> GetAllVideosAsync(
-        string uploadsPlaylistId, DateTimeOffset? publishedAfter, CancellationToken cancellationToken);
-
-    IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
-        string channelId, string videoId, CancellationToken cancellationToken);
-
-    Task ReplyAsync(string parentCommentId, string text, CancellationToken cancellationToken);
-
-    Task UpdateVideoAsync(string videoId, string title, string description, IReadOnlyList<string> tags,
-        string? categoryId, string? defaultLanguage, string? defaultAudioLanguage,
-        (double lat, double lng)? location, string? locationDescription, CancellationToken cancellationToken);
-
-    Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken);
-
-    IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(string channelId,
+        string userId,
+        string uploadsPlaylistId,
+        DateTimeOffset? publishedAfter,
         CancellationToken cancellationToken);
 
-    IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(string playlistId, CancellationToken cancellationToken);
+    IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
+        string userId,
+        string channelId,
+        string videoId,
+        CancellationToken cancellationToken);
 
-    Task<bool?> CheckCommentsAllowedAsync(string videoId, CancellationToken cancellationToken);
+    Task ReplyAsync(string userId, string parentCommentId, string text, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<VideoDto>> GetVideosAsync(IEnumerable<string> videoIds,
+    Task UpdateVideoAsync(
+        string userId,
+        string videoId,
+        string title,
+        string description,
+        IReadOnlyList<string> tags,
+        string? categoryId,
+        string? defaultLanguage,
+        string? defaultAudioLanguage,
+        (double lat, double lng)? location,
+        string? locationDescription,
+        CancellationToken cancellationToken);
+
+    Task AddVideoToPlaylistAsync(string userId, string playlistId, string videoId, CancellationToken cancellationToken);
+
+    IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(
+        string userId,
+        string channelId,
+        CancellationToken cancellationToken);
+
+    IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(
+        string userId,
+        string playlistId,
+        CancellationToken cancellationToken);
+
+    Task<bool?> CheckCommentsAllowedAsync(string userId, string videoId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<VideoDto>> GetVideosAsync(
+        string userId,
+        IEnumerable<string> videoIds,
         CancellationToken cancellationToken);
 }

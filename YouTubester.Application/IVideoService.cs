@@ -6,8 +6,6 @@ namespace YouTubester.Application;
 
 public interface IVideoService
 {
-    Task<SyncVideosResult> SyncChannelVideosAsync(string uploadPlaylistId, CancellationToken ct);
-
     /// <summary>
     /// Gets a paginated list of videos with optional title filtering.
     /// </summary>

@@ -6,9 +6,14 @@ public sealed class CopyVideoTemplateJob(IVideoTemplatingService videoTemplating
 {
     [Queue("templating")]
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
-    public async Task Run(CopyVideoTemplateRequest req, IJobCancellationToken jobToken)
+    public async Task Run(string userId, CopyVideoTemplateRequest req, IJobCancellationToken jobToken)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
         jobToken.ThrowIfCancellationRequested();
-        await videoTemplatingService.CopyTemplateAsync(req, jobToken.ShutdownToken);
+        await videoTemplatingService.CopyTemplateAsync(userId, req, jobToken.ShutdownToken);
     }
 }
