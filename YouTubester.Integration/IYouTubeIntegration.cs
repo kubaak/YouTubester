@@ -14,13 +14,10 @@ public interface IYouTubeIntegration
 
     Task ReplyAsync(string parentCommentId, string text, CancellationToken cancellationToken);
 
-    Task<VideoDetailsDto?> GetVideoDetailsAsync(string videoId, CancellationToken cancellationToken);
-
     Task UpdateVideoAsync(string videoId, string title, string description, IReadOnlyList<string> tags,
         string? categoryId, string? defaultLanguage, string? defaultAudioLanguage,
         (double lat, double lng)? location, string? locationDescription, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<string>> GetPlaylistsContainingAsync(string videoId, CancellationToken cancellationToken);
     Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken);
 
     IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(string channelId,

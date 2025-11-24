@@ -82,21 +82,6 @@ public sealed class ChannelSyncService(
         return existingChannel;
     }
 
-    public async Task<ChannelSyncResult> SyncByNameAsync(string userId, string channelName,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(channelName))
-        {
-            throw new ArgumentException("Channel name is required.", nameof(channelName));
-        }
-
-        var channel = await channelRepository.GetChannelByNameAsync(channelName, cancellationToken) ??
-                      throw new NotFoundException($"Channel '{channelName}' not found.");
-
-        var now = DateTimeOffset.UtcNow;
-        return await SyncInternalAsync(channel, now, cancellationToken);
-    }
-
     public async Task SyncChannelsForUserAsync(string userId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -265,53 +250,17 @@ public sealed class ChannelSyncService(
 
             if (toAdd.Count > 0)
             {
+                // Only add memberships for videos that are already known uploads for this channel.
+                // This prevents importing videos that belong to other channels but are present in the user's playlists.
                 var existing = await videoRepository.GetVideoETagsAsync(toAdd, cancellationToken);
-                //the videos that were not imported in SyncUploadsAsync
-                var unknown = toAdd.Where(id => !existing.ContainsKey(id)).ToList();
+                var knownVideoIds = toAdd.Where(existing.ContainsKey).ToHashSet(StringComparer.Ordinal);
 
-                if (unknown.Count > 0)
+                if (knownVideoIds.Count > 0)
                 {
-                    const int batchSize = 50;
-                    for (var i = 0; i < unknown.Count; i += batchSize)
-                    {
-                        var slice = unknown.Skip(i).Take(batchSize);
-                        var dtos = await youTubeIntegration.GetVideosAsync(slice, cancellationToken);
-
-                        var upserts = new List<Video>();
-                        foreach (var dto in dtos)
-                        {
-                            var visibility = VideoVisibilityMapper.MapVisibility(dto.PrivacyStatus, dto.PublishedAt,
-                                now);
-                            upserts.Add(Video.Create(
-                                channel.UploadsPlaylistId,
-                                dto.VideoId,
-                                dto.Title,
-                                dto.Description,
-                                dto.PublishedAt,
-                                dto.Duration,
-                                visibility,
-                                dto.Tags,
-                                dto.CategoryId,
-                                dto.DefaultLanguage,
-                                dto.DefaultAudioLanguage,
-                                dto.Location.HasValue
-                                    ? new GeoLocation(dto.Location.Value.lat, dto.Location.Value.lng)
-                                    : null,
-                                dto.LocationDescription,
-                                now,
-                                dto.ETag
-                            ));
-                        }
-
-                        if (upserts.Count > 0)
-                        {
-                            await videoRepository.UpsertAsync(upserts, cancellationToken);
-                        }
-                    }
+                    totalMembershipsAdded +=
+                        await playlistRepository.AddMembershipsAsync(playlist.PlaylistId, knownVideoIds,
+                            cancellationToken);
                 }
-
-                totalMembershipsAdded +=
-                    await playlistRepository.AddMembershipsAsync(playlist.PlaylistId, toAdd, cancellationToken);
             }
 
             if (toRemove.Count > 0)

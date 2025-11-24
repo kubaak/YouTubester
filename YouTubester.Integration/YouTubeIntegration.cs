@@ -78,7 +78,6 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         }
     }
 
-
     public async IAsyncEnumerable<VideoDto> GetAllVideosAsync(
         string uploadsPlaylistId,
         DateTimeOffset? publishedAfter,
@@ -355,37 +354,6 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         await youTubeService.Comments.Insert(comment, "snippet").ExecuteAsync(cancellationToken);
     }
 
-    public async Task<VideoDetailsDto?> GetVideoDetailsAsync(string videoId, CancellationToken cancellationToken)
-    {
-        var req = youTubeService.Videos.List("snippet,recordingDetails");
-        req.Id = videoId;
-        var res = await req.ExecuteAsync(cancellationToken);
-        var video = res.Items.FirstOrDefault();
-        if (video is null)
-        {
-            return null;
-        }
-
-        var tags = video.Snippet?.Tags?.ToArray() ?? [];
-        (double lat, double lng)? location = null;
-        if (video.RecordingDetails?.Location is { } gp)
-        {
-            location = (gp.Latitude ?? 0, gp.Longitude ?? 0);
-        }
-
-        return new VideoDetailsDto(
-            video.Id!,
-            video.Snippet?.Title ?? "",
-            video.Snippet?.Description ?? "",
-            tags,
-            video.Snippet?.CategoryId,
-            video.Snippet?.DefaultLanguage,
-            video.Snippet?.DefaultAudioLanguage,
-            location,
-            video.RecordingDetails?.LocationDescription
-        );
-    }
-
     public async Task UpdateVideoAsync(string videoId, string title, string description, IReadOnlyList<string> tags,
         string? categoryId, string? defaultLanguage, string? defaultAudioLanguage,
         (double lat, double lng)? location, string? locationDescription, CancellationToken cancellationToken)
@@ -406,57 +374,13 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         {
             video.RecordingDetails.Location = new GeoPoint
             {
-                Latitude = location.Value.lat,
-                Longitude = location.Value.lng
+                Latitude = location.Value.lat, Longitude = location.Value.lng
             };
             video.RecordingDetails.LocationDescription = locationDescription;
         }
 
         var up = youTubeService.Videos.Update(video, "snippet,recordingDetails");
         await up.ExecuteAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<string>> GetPlaylistsContainingAsync(string videoId,
-        CancellationToken cancellationToken)
-    {
-        var result = new List<string>();
-
-        // list my playlists
-        string? playListsPage = null;
-        do
-        {
-            var playListRequest = youTubeService.Playlists.List("id");
-            playListRequest.Mine = true;
-            playListRequest.MaxResults = 50;
-            playListRequest.PageToken = playListsPage;
-            var plRes = await playListRequest.ExecuteAsync(cancellationToken);
-
-            foreach (var playlist in plRes.Items)
-            {
-                // scan items of this playlist
-                string? videosPage = null;
-                do
-                {
-                    var itemsReq = youTubeService.PlaylistItems.List("contentDetails");
-                    itemsReq.PlaylistId = playlist.Id;
-                    itemsReq.MaxResults = 50;
-                    itemsReq.PageToken = videosPage;
-                    var itemsRes = await itemsReq.ExecuteAsync(cancellationToken);
-
-                    if (itemsRes.Items.Any(i => i.ContentDetails?.VideoId == videoId))
-                    {
-                        result.Add(playlist.Id!);
-                        break;
-                    }
-
-                    videosPage = itemsRes.NextPageToken;
-                } while (videosPage is not null);
-            }
-
-            playListsPage = plRes.NextPageToken;
-        } while (playListsPage is not null);
-
-        return result;
     }
 
     public async Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken)
@@ -557,82 +481,6 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
             }
 
             page = itemsResponse.NextPageToken;
-        } while (!string.IsNullOrEmpty(page));
-    }
-
-    public async IAsyncEnumerable<string> GetVideoIdsNewerThanAsync(
-        string channelId,
-        DateTimeOffset? cutoff,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        // Get the uploads playlist ID for the channel
-        var channelRequest = youTubeService.Channels.List("contentDetails");
-        channelRequest.Id = channelId;
-
-        var channelResponse = await channelRequest.ExecuteAsync(cancellationToken);
-        if (channelResponse.Items is null || channelResponse.Items.Count == 0)
-        {
-            yield break;
-        }
-
-        var uploadsPlaylistId = channelResponse.Items[0].ContentDetails?.RelatedPlaylists?.Uploads;
-        if (string.IsNullOrWhiteSpace(uploadsPlaylistId))
-        {
-            yield break;
-        }
-
-        // Enumerate uploads playlist items
-        string? page = null;
-        do
-        {
-            var playlistRequest = youTubeService.PlaylistItems.List("contentDetails,snippet");
-            playlistRequest.PlaylistId = uploadsPlaylistId;
-            playlistRequest.MaxResults = 50;
-            playlistRequest.PageToken = page;
-
-            var playlistResponse = await playlistRequest.ExecuteAsync(cancellationToken);
-            if (playlistResponse.Items is null || playlistResponse.Items.Count == 0)
-            {
-                yield break;
-            }
-
-            // Early stop per page if cutoff is specified
-            if (cutoff.HasValue)
-            {
-                var firstItem = playlistResponse.Items.First();
-                var newest = firstItem.ContentDetails?.VideoPublishedAtDateTimeOffset ??
-                             firstItem.Snippet?.PublishedAtDateTimeOffset;
-                if (newest.HasValue && newest.Value <= cutoff.Value)
-                {
-                    yield break;
-                }
-            }
-
-            foreach (var item in playlistResponse.Items)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var videoId = item.ContentDetails?.VideoId;
-                if (string.IsNullOrWhiteSpace(videoId))
-                {
-                    continue;
-                }
-
-                // Check cutoff within page
-                if (cutoff.HasValue)
-                {
-                    var publishedAt = item.ContentDetails?.VideoPublishedAtDateTimeOffset ??
-                                      item.Snippet?.PublishedAtDateTimeOffset;
-                    if (publishedAt.HasValue && publishedAt.Value <= cutoff.Value)
-                    {
-                        yield break;
-                    }
-                }
-
-                yield return videoId;
-            }
-
-            page = playlistResponse.NextPageToken;
         } while (!string.IsNullOrEmpty(page));
     }
 }

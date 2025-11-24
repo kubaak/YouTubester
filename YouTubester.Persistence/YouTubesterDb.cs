@@ -54,6 +54,7 @@ public class YouTubesterDb(DbContextOptions<YouTubesterDb> options) : DbContext(
         b.Entity<Channel>().Property(x => x.LastUploadsCutoff).HasConversion(
             v => !v.HasValue ? (DateTime?)null : v.Value.UtcDateTime,
             v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
+        //todo
         // b.Entity<Channel>()
         //     .HasOne<User>()
         //     .WithMany()
