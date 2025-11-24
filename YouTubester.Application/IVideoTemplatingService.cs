@@ -2,6 +2,8 @@ namespace YouTubester.Application;
 
 public interface IVideoTemplatingService
 {
-    Task<CopyVideoTemplateResult> CopyTemplateAsync(CopyVideoTemplateRequest request,
+    Task<CopyVideoTemplateResult> CopyTemplateAsync(
+        string userId,
+        CopyVideoTemplateRequest request,
         CancellationToken cancellationToken);
 }

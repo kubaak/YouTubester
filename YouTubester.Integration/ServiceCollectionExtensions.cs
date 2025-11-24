@@ -1,4 +1,3 @@
-using Google.Apis.YouTube.v3;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
@@ -12,12 +11,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddYoutubeServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<YouTubeAuthOptions>(configuration.GetSection("YouTubeAuth"));
-        services.AddSingleton<YouTubeService>(sp =>
-        {
-            var factory = sp.GetRequiredService<IYouTubeServiceFactory>();
-            return factory.CreateAsync(CancellationToken.None).GetAwaiter().GetResult();
-        });
-        services.AddSingleton<IYouTubeServiceFactory, YouTubeServiceFactory>();
+        services.AddScoped<IYouTubeServiceFactory, YouTubeServiceFactory>();
         services.AddScoped<IYouTubeIntegration, YouTubeIntegration>();
         return services;
     }

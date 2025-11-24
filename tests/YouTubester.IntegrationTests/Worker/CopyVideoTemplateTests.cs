@@ -48,8 +48,8 @@ public class CopyVideoTemplateTests(TestFixture fixture)
                 MockAuthenticationExtensions.TestPicture,
                 TestFixture.TestingDateTimeOffset);
             await dbContext.Users.AddAsync(user);
-            await dbContext.Channels.AddAsync(Channel.Create(channelId, userId, "Channel A", "UploadPlaylistId",
-                TestFixture.TestingDateTimeOffset));
+            await dbContext.Channels.AddAsync(Channel.Create(channelId, userId, "Channel A",
+                targetVideo.UploadsPlaylistId, TestFixture.TestingDateTimeOffset));
             dbContext.Videos.AddRange(sourceVideo, targetVideo);
             dbContext.Playlists.AddRange(playlistA, playlistB);
             dbContext.VideoPlaylists.AddRange(srcInA, tgtInB);
@@ -76,6 +76,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         await capturingClient.RunAllAsync<CopyVideoTemplateJob>(fixture.WorkerServices);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.UpdateVideoAsync(
+                It.IsAny<string>(),
                 targetVideo.VideoId,
                 sourceVideo.Title!,
                 sourceVideo.Description!,
@@ -90,7 +91,8 @@ public class CopyVideoTemplateTests(TestFixture fixture)
             Times.Once);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.AddVideoToPlaylistAsync(
-            playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<string>(), playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()),
+            Times.Once);
 
         using (var scope = fixture.WorkerServices.CreateScope())
         {
@@ -163,8 +165,8 @@ public class CopyVideoTemplateTests(TestFixture fixture)
                 MockAuthenticationExtensions.TestPicture,
                 TestFixture.TestingDateTimeOffset);
             await dbContext.Users.AddAsync(user);
-            await dbContext.Channels.AddAsync(Channel.Create(channelId, userId, "Channel A", "UploadPlaylistId",
-                TestFixture.TestingDateTimeOffset));
+            await dbContext.Channels.AddAsync(Channel.Create(channelId, userId, "Channel A",
+                targetVideo.UploadsPlaylistId, TestFixture.TestingDateTimeOffset));
             dbContext.Videos.AddRange(sourceVideo, targetVideo);
             dbContext.Playlists.AddRange(playlistA, playlistB);
             dbContext.VideoPlaylists.AddRange(srcInA, tgtInB);
@@ -192,6 +194,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         await capturingClient.RunAllAsync<CopyVideoTemplateJob>(fixture.WorkerServices);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.UpdateVideoAsync(
+                It.IsAny<string>(),
                 targetVideo.VideoId,
                 suggestedMetadata.Title,
                 suggestedMetadata.Description,
@@ -206,7 +209,8 @@ public class CopyVideoTemplateTests(TestFixture fixture)
             Times.Once);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.AddVideoToPlaylistAsync(
-            playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<string>(), playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()),
+            Times.Once);
 
         using (var scope = fixture.WorkerServices.CreateScope())
         {
@@ -247,7 +251,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
     {
         fixture.WorkerFactory.MockYouTubeIntegration
             .Setup(m => m.AddVideoToPlaylistAsync(
-                It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
@@ -256,6 +260,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
     {
         fixture.WorkerFactory.MockYouTubeIntegration
             .Setup(m => m.UpdateVideoAsync(
+                It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),

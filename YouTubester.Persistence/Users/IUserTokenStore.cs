@@ -11,5 +11,5 @@ public interface IUserTokenStore
         DateTimeOffset? expiresAt,
         CancellationToken cancellationToken);
 
-    Task<UserTokens?> GetGoogleTokensAsync(string userId, CancellationToken cancellationToken);
+    Task<UserToken?> GetGoogleTokenAsync(string userId, CancellationToken cancellationToken);
 }

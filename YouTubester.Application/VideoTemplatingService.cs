@@ -13,8 +13,15 @@ public sealed class VideoTemplatingService(
     : IVideoTemplatingService
 {
     public async Task<CopyVideoTemplateResult> CopyTemplateAsync(
-        CopyVideoTemplateRequest request, CancellationToken cancellationToken)
+        string userId,
+        CopyVideoTemplateRequest request,
+        CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
         // Load source and target videos from DB
         var sourceVideo = await videoRepository.GetVideoByIdAsync(request.SourceVideoId, cancellationToken)
                           ?? throw new ArgumentException($"Source video {request.SourceVideoId} not found in cache.");
@@ -61,6 +68,7 @@ public sealed class VideoTemplatingService(
 
         // Update target video on YouTube
         await youTubeIntegration.UpdateVideoAsync(
+            userId,
             request.TargetVideoId,
             newTitle,
             newDescription,
@@ -114,7 +122,8 @@ public sealed class VideoTemplatingService(
             .ToHashSet();
         foreach (var playlistId in playlistIds)
         {
-            await youTubeIntegration.AddVideoToPlaylistAsync(playlistId, targetVideo.VideoId, cancellationToken);
+            await youTubeIntegration.AddVideoToPlaylistAsync(userId, playlistId, targetVideo.VideoId,
+                cancellationToken);
         }
 
         await playlistRepository.SetMembershipsToPlaylistsAsync(targetVideo.VideoId, playlistIds,

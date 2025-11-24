@@ -22,7 +22,7 @@ public sealed class UserTokenStore(YouTubesterDb databaseContext) : IUserTokenSt
 
         if (userTokens is null)
         {
-            userTokens = UserTokens.Create(userId, refreshToken, accessToken, expiresAt);
+            userTokens = UserToken.Create(userId, refreshToken, accessToken, expiresAt);
             await databaseContext.UserTokens.AddAsync(userTokens, cancellationToken);
         }
         else
@@ -33,7 +33,7 @@ public sealed class UserTokenStore(YouTubesterDb databaseContext) : IUserTokenSt
         await databaseContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<UserTokens?> GetGoogleTokensAsync(string userId, CancellationToken cancellationToken)
+    public async Task<UserToken?> GetGoogleTokenAsync(string userId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {

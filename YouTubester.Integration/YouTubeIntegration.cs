@@ -9,10 +9,11 @@ using YouTubester.Integration.Dtos;
 
 namespace YouTubester.Integration;
 
-public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<YouTubeIntegration> logger)
-    : IYouTubeIntegration
+public sealed class YouTubeIntegration(
+    IYouTubeServiceFactory youTubeServiceFactory,
+    ILogger<YouTubeIntegration> logger) : IYouTubeIntegration
 {
-    public async Task<ChannelDto?> GetChannelAsync(string channelName)
+    public async Task<ChannelDto?> GetChannelAsync(string userId, string channelName, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(channelName))
         {
@@ -21,6 +22,8 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
 
         try
         {
+            var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
             // 1) Find the channelId by name using Search (most reliable if caller provides a human name)
             var search = youTubeService.Search.List("snippet");
             search.Q = channelName;
@@ -38,31 +41,31 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
             }
 
             // 2) Fetch channel details to get uploads playlist + title + ETag
-            var chReq = youTubeService.Channels.List("snippet,contentDetails");
-            chReq.Id = channelId;
+            var channelRequest = youTubeService.Channels.List("snippet,contentDetails");
+            channelRequest.Id = channelId;
 
-            var chRes = await chReq.ExecuteAsync();
-            var ch = chRes.Items?.FirstOrDefault();
-            if (ch is null)
+            var channelResponse = await channelRequest.ExecuteAsync();
+            var channel = channelResponse.Items?.FirstOrDefault();
+            if (channel is null)
             {
                 logger.LogWarning("Channel id '{ChannelId}' not found when fetching details", channelId);
                 return null;
             }
 
-            var uploads = ch.ContentDetails?.RelatedPlaylists?.Uploads;
-            if (string.IsNullOrWhiteSpace(uploads))
+            var uploadsPlaylistId = channel.ContentDetails?.RelatedPlaylists?.Uploads;
+            if (string.IsNullOrWhiteSpace(uploadsPlaylistId))
             {
                 logger.LogWarning("Channel '{ChannelId}' has no uploads playlist", channelId);
                 return null;
             }
 
-            var title = ch.Snippet?.Title ?? channelName;
-            var etag = ch.ETag;
+            var title = channel.Snippet?.Title ?? channelName;
+            var etag = channel.ETag;
 
             return new ChannelDto(
                 channelId,
                 title,
-                uploads,
+                uploadsPlaylistId,
                 etag
             );
         }
@@ -78,11 +81,77 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         }
     }
 
+    public async Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
+            var channels = new List<ChannelDto>();
+            string? pageToken = null;
+
+            do
+            {
+                var channelsRequest = youTubeService.Channels.List("snippet,contentDetails");
+                channelsRequest.Mine = true;
+                channelsRequest.MaxResults = 50;
+                channelsRequest.PageToken = pageToken;
+
+                var channelsResponse = await channelsRequest.ExecuteAsync(cancellationToken);
+                if (channelsResponse.Items is null || channelsResponse.Items.Count == 0)
+                {
+                    break;
+                }
+
+                foreach (var channel in channelsResponse.Items)
+                {
+                    if (string.IsNullOrWhiteSpace(channel.Id))
+                    {
+                        continue;
+                    }
+
+                    var uploadsPlaylistId = channel.ContentDetails?.RelatedPlaylists?.Uploads;
+                    if (string.IsNullOrWhiteSpace(uploadsPlaylistId))
+                    {
+                        continue;
+                    }
+
+                    var title = channel.Snippet?.Title ?? channel.Id;
+                    var etag = channel.ETag;
+
+                    channels.Add(new ChannelDto(
+                        channel.Id,
+                        title,
+                        uploadsPlaylistId,
+                        etag
+                    ));
+                }
+
+                pageToken = channelsResponse.NextPageToken;
+            } while (!string.IsNullOrEmpty(pageToken));
+
+            return channels;
+        }
+        catch (GoogleApiException ex)
+        {
+            logger.LogError(ex, "YouTube API error while getting channels for current user.");
+            return Array.Empty<ChannelDto>();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while getting channels for current user.");
+            return Array.Empty<ChannelDto>();
+        }
+    }
+
     public async IAsyncEnumerable<VideoDto> GetAllVideosAsync(
+        string userId,
         string uploadsPlaylistId,
         DateTimeOffset? publishedAfter,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
         string? page = null;
 
         do
@@ -195,10 +264,12 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         } while (!string.IsNullOrEmpty(page));
     }
 
-    public async Task<bool?> CheckCommentsAllowedAsync(string videoId, CancellationToken cancellationToken)
+    public async Task<bool?> CheckCommentsAllowedAsync(string userId, string videoId, CancellationToken cancellationToken)
     {
         try
         {
+            var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
             // First check if video is made for kids (short-circuit)
             var videoRequest = youTubeService.Videos.List("status");
             videoRequest.Id = videoId;
@@ -242,7 +313,9 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         }
     }
 
-    public async Task<IReadOnlyList<VideoDto>> GetVideosAsync(IEnumerable<string> videoIds,
+    public async Task<IReadOnlyList<VideoDto>> GetVideosAsync(
+        string userId,
+        IEnumerable<string> videoIds,
         CancellationToken cancellationToken)
     {
         var videoIdsList = videoIds.ToList();
@@ -250,6 +323,8 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         {
             return Array.Empty<VideoDto>();
         }
+
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
 
         var videoRequest = youTubeService.Videos.List("snippet,contentDetails,status,recordingDetails");
         videoRequest.Id = string.Join(",", videoIdsList);
@@ -298,10 +373,13 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
     }
 
     public async IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
+        string userId,
         string channelId,
         string videoId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
         string? page = null;
         do
         {
@@ -348,16 +426,37 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         } while (page != null);
     }
 
-    public async Task ReplyAsync(string parentCommentId, string text, CancellationToken cancellationToken)
+    public async Task ReplyAsync(string userId, string parentCommentId, string text, CancellationToken cancellationToken)
     {
-        var comment = new Comment { Snippet = new CommentSnippet { ParentId = parentCommentId, TextOriginal = text } };
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
+        var comment = new Comment
+        {
+            Snippet = new CommentSnippet
+            {
+                ParentId = parentCommentId,
+                TextOriginal = text
+            }
+        };
+
         await youTubeService.Comments.Insert(comment, "snippet").ExecuteAsync(cancellationToken);
     }
 
-    public async Task UpdateVideoAsync(string videoId, string title, string description, IReadOnlyList<string> tags,
-        string? categoryId, string? defaultLanguage, string? defaultAudioLanguage,
-        (double lat, double lng)? location, string? locationDescription, CancellationToken cancellationToken)
+    public async Task UpdateVideoAsync(
+        string userId,
+        string videoId,
+        string title,
+        string description,
+        IReadOnlyList<string> tags,
+        string? categoryId,
+        string? defaultLanguage,
+        string? defaultAudioLanguage,
+        (double lat, double lng)? location,
+        string? locationDescription,
+        CancellationToken cancellationToken)
     {
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
         var snippet = new VideoSnippet
         {
             Title = title,
@@ -383,8 +482,14 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
         await up.ExecuteAsync(cancellationToken);
     }
 
-    public async Task AddVideoToPlaylistAsync(string playlistId, string videoId, CancellationToken cancellationToken)
+    public async Task AddVideoToPlaylistAsync(
+        string userId,
+        string playlistId,
+        string videoId,
+        CancellationToken cancellationToken)
     {
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
         //todo avoid checking to save the calls?
         // Check if already present to avoid duplicates
         string? page = null;
@@ -418,9 +523,12 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
     }
 
     public async IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(
+        string userId,
         string channelId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
         string? page = null;
         do
         {
@@ -451,9 +559,12 @@ public sealed class YouTubeIntegration(YouTubeService youTubeService, ILogger<Yo
     }
 
     public async IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(
+        string userId,
         string playlistId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+
         string? page = null;
         do
         {

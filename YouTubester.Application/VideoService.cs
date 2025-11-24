@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using YouTubester.Application.Common;
@@ -18,59 +17,6 @@ public class VideoService(
     IOptions<VideoListingOptions> options,
     ILogger<VideoService> logger) : IVideoService
 {
-    private const int BatchCapacity = 100;
-
-    public async Task<SyncVideosResult> SyncChannelVideosAsync(string uploadPlaylistId, CancellationToken ct)
-    {
-        var cachedAt = DateTimeOffset.UtcNow;
-        var total = 0;
-        var batch = new ConcurrentDictionary<string, Video>();
-
-        await foreach (var videoDto in yt.GetAllVideosAsync(uploadPlaylistId, null, ct))
-        {
-            //We already have this video (race condition)
-            if (batch.ContainsKey(videoDto.VideoId))
-            {
-                continue;
-            }
-
-            total++;
-
-            batch.TryAdd(videoDto.VideoId, Video.Create(
-                uploadPlaylistId,
-                videoDto.VideoId,
-                videoDto.Title,
-                videoDto.Description,
-                videoDto.PublishedAt,
-                videoDto.Duration,
-                VideoVisibilityMapper.MapVisibility(videoDto.PrivacyStatus, videoDto.PublishedAt, DateTimeOffset.UtcNow),
-                videoDto.Tags,
-                videoDto.CategoryId,
-                videoDto.DefaultLanguage, videoDto.DefaultAudioLanguage,
-                videoDto.Location.HasValue
-                    ? new GeoLocation(videoDto.Location.Value.lat, videoDto.Location.Value.lng)
-                    : null,
-                videoDto.LocationDescription,
-                cachedAt
-            ));
-
-            // flush in batches to keep memory/transactions modest
-            if (batch.Count >= BatchCapacity)
-            {
-                await repo.UpsertAsync(batch.Select(b => b.Value), ct);
-                batch.Clear();
-            }
-        }
-
-        if (batch.Count > 0)
-        {
-            await repo.UpsertAsync(batch.Select(b => b.Value), ct);
-        }
-
-        // For a more detailed result, have repo return (inserted, updated). Here we just report total touched.
-        return new SyncVideosResult(0, 0, total);
-    }
-
     public async Task<PagedResult<VideoListItemDto>> GetVideosAsync(string? title, VideoVisibility[]? visibility,
         int? pageSize, string? pageToken, CancellationToken ct)
     {
@@ -128,13 +74,9 @@ public class VideoService(
 
         var items = itemsToReturn.Select(v => new VideoListItemDto
         {
-            VideoId = v.VideoId,
-            Title = v.Title,
-            PublishedAt = v.PublishedAt,
-            ThumbnailUrl = v.ThumbnailUrl
+            VideoId = v.VideoId, Title = v.Title, PublishedAt = v.PublishedAt, ThumbnailUrl = v.ThumbnailUrl
         }).ToList();
 
         return new PagedResult<VideoListItemDto> { Items = items, NextPageToken = nextPageToken };
     }
-
 }

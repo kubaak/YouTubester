@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Application;
 using YouTubester.Application.Contracts.Replies;
@@ -32,6 +33,12 @@ public class RepliesController(IReplyService service) : ControllerBase
         return Ok(reply);
     }
 
+    /// <summary>
+    /// Approves batch of replies
+    /// </summary>
+    /// <param name="decisions"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     [HttpPost("approve")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(BatchDecisionResultDto), StatusCodes.Status200OK)]
@@ -45,7 +52,13 @@ public class RepliesController(IReplyService service) : ControllerBase
             return BadRequest("Missing decisions.");
         }
 
-        var result = await service.ApplyBatchAsync(decisions, cancellationToken);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await service.ApplyBatchAsync(userId, decisions, cancellationToken);
         return Ok(result);
     }
 

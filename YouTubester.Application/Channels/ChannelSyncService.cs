@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using YouTubester.Application.Common;
+using YouTubester.Application.Contracts.Channels;
 using YouTubester.Domain;
 using YouTubester.Integration;
 using YouTubester.Persistence.Channels;
@@ -41,7 +42,7 @@ public sealed class ChannelSyncService(
         }
 
         // Pull canonical channel details (ChannelId, Title, UploadsPlaylistId, ETag)
-        var channelDto = await youTubeIntegration.GetChannelAsync(channelName) ??
+        var channelDto = await youTubeIntegration.GetChannelAsync(userId, channelName, cancellationToken) ??
                          throw new NotFoundException($"Channel '{channelName}' not found on YouTube.");
 
         var now = DateTimeOffset.UtcNow;
@@ -82,19 +83,39 @@ public sealed class ChannelSyncService(
         return existingChannel;
     }
 
-    public async Task SyncChannelsForUserAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<AvailableChannelDto>> GetAvailableYoutubeChannelsForUserAsync(
+        string userId,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
             throw new ArgumentException("User id is required.", nameof(userId));
         }
 
-        var tokens = await userTokenStore.GetGoogleTokensAsync(userId, cancellationToken);
-        if (tokens is null || tokens.ExpiresAt < DateTimeOffset.UtcNow)
+        var youTubeChannels = await youTubeIntegration.GetUserChannelsAsync(userId, cancellationToken);
+        if (youTubeChannels.Count == 0)
         {
-            logger.LogWarning(
-                "Skipping channel sync for user {UserId} because refresh token is stored or it is too old", userId);
-            return;
+            return Array.Empty<AvailableChannelDto>();
+        }
+
+        var availableChannels = new List<AvailableChannelDto>(youTubeChannels.Count);
+        foreach (var youTubeChannel in youTubeChannels)
+        {
+            availableChannels.Add(new AvailableChannelDto(
+                youTubeChannel.Id,
+                youTubeChannel.Name,
+                youTubeChannel.UploadsPlaylistId,
+                youTubeChannel.ETag));
+        }
+
+        return availableChannels;
+    }
+
+    public async Task SyncChannelsForUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
         }
 
         var channels = await channelRepository.GetChannelsForUserAsync(userId, cancellationToken);
@@ -108,18 +129,22 @@ public sealed class ChannelSyncService(
         foreach (var channel in channels)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await SyncInternalAsync(channel, now, cancellationToken);
+            await SyncInternalAsync(userId, channel, now, cancellationToken);
         }
     }
 
-    private async Task<ChannelSyncResult> SyncInternalAsync(Channel channel, DateTimeOffset now, CancellationToken ct)
+    private async Task<ChannelSyncResult> SyncInternalAsync(
+        string userId,
+        Channel channel,
+        DateTimeOffset now,
+        CancellationToken ct)
     {
         logger.LogInformation("Starting playlist sync for channel {ChannelId}", channel.ChannelId);
 
-        var (videosInserted, videosUpdated) = await SyncUploadsAsync(channel, now, ct);
+        var (videosInserted, videosUpdated) = await SyncUploadsAsync(userId, channel, now, ct);
 
         var (playlistsInserted, playlistsUpdated, membershipsAdded, membershipsRemoved) =
-            await SyncPlaylistMembershipsAsync(channel, now, ct);
+            await SyncPlaylistMembershipsAsync(userId, channel, now, ct);
 
         var result = new ChannelSyncResult(videosInserted, videosUpdated, playlistsInserted,
             playlistsUpdated, membershipsAdded, membershipsRemoved);
@@ -133,8 +158,11 @@ public sealed class ChannelSyncService(
         return result;
     }
 
-    private async Task<(int videosInserted, int videosUpdated)> SyncUploadsAsync(Channel channel,
-        DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<(int videosInserted, int videosUpdated)> SyncUploadsAsync(
+        string userId,
+        Channel channel,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var channelId = channel.ChannelId;
         var uploadsPlaylistId = channel.UploadsPlaylistId;
@@ -150,7 +178,7 @@ public sealed class ChannelSyncService(
         var maxPublishedAt = cutoff ?? DateTimeOffset.MinValue;
         var processedAny = false;
 
-        await foreach (var videoDto in youTubeIntegration.GetAllVideosAsync(uploadsPlaylistId, cutoff,
+        await foreach (var videoDto in youTubeIntegration.GetAllVideosAsync(userId, uploadsPlaylistId, cutoff,
                            cancellationToken))
         {
             if (!seen.Add(videoDto.VideoId))
@@ -207,13 +235,17 @@ public sealed class ChannelSyncService(
     }
 
     private async Task<(int PlaylistsInserted, int PlaylistsUpdated, int MembershipsAdded, int MembershipsRemoved)>
-        SyncPlaylistMembershipsAsync(Channel channel, DateTimeOffset now, CancellationToken cancellationToken)
+        SyncPlaylistMembershipsAsync(
+            string userId,
+            Channel channel,
+            DateTimeOffset now,
+            CancellationToken cancellationToken)
     {
         var channelId = channel.ChannelId;
         var totalMembershipsAdded = 0;
         var totalMembershipsRemoved = 0;
 
-        var playlistDtos = youTubeIntegration.GetPlaylistsAsync(channelId, cancellationToken);
+        var playlistDtos = youTubeIntegration.GetPlaylistsAsync(userId, channelId, cancellationToken);
         var remotePlaylists = new List<Playlist>();
         await foreach (var dto in playlistDtos)
         {
@@ -236,7 +268,7 @@ public sealed class ChannelSyncService(
             cancellationToken.ThrowIfCancellationRequested();
 
             var remoteVideoIds = new HashSet<string>(StringComparer.Ordinal);
-            await foreach (var videoId in youTubeIntegration.GetPlaylistVideoIdsAsync(playlist.PlaylistId,
+            await foreach (var videoId in youTubeIntegration.GetPlaylistVideoIdsAsync(userId, playlist.PlaylistId,
                                cancellationToken))
             {
                 remoteVideoIds.Add(videoId);

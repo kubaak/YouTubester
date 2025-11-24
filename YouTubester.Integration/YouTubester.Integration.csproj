@@ -15,4 +15,8 @@
         <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.10"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\YouTubester.Persistence\YouTubester.Persistence.csproj"/>
+    </ItemGroup>
+
 </Project>

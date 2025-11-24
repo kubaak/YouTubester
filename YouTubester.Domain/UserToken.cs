@@ -1,13 +1,13 @@
 namespace YouTubester.Domain;
 
-public sealed class UserTokens
+public sealed class UserToken
 {
     public string UserId { get; private set; } = null!;
     public string? RefreshToken { get; private set; }
     public string? AccessToken { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
 
-    public static UserTokens Create(string userId, string? refreshToken, string? accessToken,
+    public static UserToken Create(string userId, string? refreshToken, string? accessToken,
         DateTimeOffset? expiresAt)
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -15,12 +15,9 @@ public sealed class UserTokens
             throw new ArgumentException("User id must be a non-empty string.", nameof(userId));
         }
 
-        var userTokens = new UserTokens
+        var userTokens = new UserToken
         {
-            UserId = userId,
-            RefreshToken = refreshToken,
-            AccessToken = accessToken,
-            ExpiresAt = expiresAt
+            UserId = userId, RefreshToken = refreshToken, AccessToken = accessToken, ExpiresAt = expiresAt
         };
 
         return userTokens;
@@ -33,7 +30,7 @@ public sealed class UserTokens
         ExpiresAt = expiresAt;
     }
 
-    private UserTokens()
+    private UserToken()
     {
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
 using YouTubester.Application.Channels;
+using YouTubester.Application.Contracts.Channels;
 using YouTubester.Domain;
 using YouTubester.Integration.Dtos;
 using YouTubester.IntegrationTests.TestHost;
@@ -33,7 +34,8 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // First call returns initial snapshot, second call returns changed data
         fixture.ApiFactory.MockYouTubeIntegration
-            .SetupSequence(x => x.GetChannelAsync(inputChannelName))
+            .SetupSequence(x => x.GetChannelAsync(MockAuthenticationExtensions.TestSub, inputChannelName,
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChannelDto(channelId, nameV1, uploadsIdV1, etagV1))
             .ReturnsAsync(new ChannelDto(channelId, nameV2, uploadsIdV2, etagV2));
 
@@ -73,7 +75,71 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // Verify the integration was called twice with the same input name
         fixture.ApiFactory.MockYouTubeIntegration.Verify(
-            m => m.GetChannelAsync(inputChannelName), Times.Exactly(2));
+            m => m.GetChannelAsync(MockAuthenticationExtensions.TestSub, inputChannelName,
+                It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task GetAvailableChannels_Returns_Channels_From_YouTubeIntegration()
+    {
+        // Arrange
+        await fixture.ResetDbAsync();
+
+        // Ensure the current user has valid Google tokens so the application layer
+        // does not short-circuit before calling YouTubeIntegration.
+        using (var scope = fixture.ApiServices.CreateScope())
+        {
+            var databaseContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+            var user = User.Create(MockAuthenticationExtensions.TestSub, MockAuthenticationExtensions.TestEmail,
+                MockAuthenticationExtensions.TestName, MockAuthenticationExtensions.TestPicture, DateTimeOffset.Now);
+            databaseContext.Users.Add(user);
+            var userTokens = UserToken.Create(
+                MockAuthenticationExtensions.TestSub,
+                "refresh-token",
+                "access-token",
+                DateTimeOffset.UtcNow.AddHours(1));
+            databaseContext.UserTokens.Add(userTokens);
+            await databaseContext.SaveChangesAsync();
+        }
+
+        var remoteChannels = new List<ChannelDto>
+        {
+            new(
+                "UCChannelId1",
+                "First Channel",
+                "UploadsPlaylistId1",
+                "etag-1"),
+            new(
+                "UCChannelId2",
+                "Second Channel",
+                "UploadsPlaylistId2",
+                "etag-2")
+        };
+
+        fixture.ApiFactory.MockYouTubeIntegration
+            .Setup(x => x.GetUserChannelsAsync(MockAuthenticationExtensions.TestSub, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(remoteChannels);
+
+        // Act
+        var response = await fixture.HttpClient.GetAsync("/api/channels/available");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var deserialized = JsonSerializer.Deserialize<List<AvailableChannelDto>>(responseContent, options);
+
+        deserialized.Should().NotBeNull();
+        deserialized!.Should().HaveCount(2);
+        deserialized[0].Id.Should().Be("UCChannelId1");
+        deserialized[0].Name.Should().Be("First Channel");
+        deserialized[1].Id.Should().Be("UCChannelId2");
+        deserialized[1].UploadsPlaylistId.Should().Be("UploadsPlaylistId2");
+
+        fixture.ApiFactory.MockYouTubeIntegration.Verify(
+            x => x.GetUserChannelsAsync(MockAuthenticationExtensions.TestSub, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -186,30 +252,32 @@ public sealed class ChannelTests(TestFixture fixture)
 
         var mockPlaylistVideoIds = new Dictionary<string, List<string>>
         {
-            ["playlist123"] = ["video123", "video456"],
-            ["playlist456"] = ["video456"]
+            ["playlist123"] = ["video123", "video456"], ["playlist456"] = ["video456"]
         };
 
         // Setup MockYouTubeIntegration
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetAllVideosAsync(testUploadsPlaylistId, It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetAllVideosAsync(MockAuthenticationExtensions.TestSub, testUploadsPlaylistId,
+                It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockVideos));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistsAsync(testChannelId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetPlaylistsAsync(MockAuthenticationExtensions.TestSub, testChannelId,
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistData));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistVideoIdsAsync("playlist123", It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetPlaylistVideoIdsAsync(MockAuthenticationExtensions.TestSub, "playlist123",
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist123"]));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistVideoIdsAsync("playlist456", It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetPlaylistVideoIdsAsync(MockAuthenticationExtensions.TestSub, "playlist456",
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist456"]));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetVideosAsync(It.IsAny<IEnumerable<string>>(),
+            .Setup(x => x.GetVideosAsync(MockAuthenticationExtensions.TestSub, It.IsAny<IEnumerable<string>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockVideos.ToList().AsReadOnly());
 
@@ -375,21 +443,25 @@ public sealed class ChannelTests(TestFixture fixture)
         // Setup MockYouTubeIntegration for first call
         fixture.ApiFactory.MockYouTubeIntegration
             .SetupSequence(x =>
-                x.GetAllVideosAsync(testUploadsPlaylistId, It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+                x.GetAllVideosAsync(MockAuthenticationExtensions.TestSub, testUploadsPlaylistId,
+                    It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockVideosFirstCall))
             .Returns(CreateAsyncEnumerable(mockVideosSecondCall));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistsAsync(testChannelId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetPlaylistsAsync(MockAuthenticationExtensions.TestSub, testChannelId,
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistData));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistVideoIdsAsync("playlist789", It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetPlaylistVideoIdsAsync(MockAuthenticationExtensions.TestSub, "playlist789",
+                It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist789"]));
 
         fixture.ApiFactory.MockYouTubeIntegration
             .SetupSequence(x =>
-                x.GetVideosAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+                x.GetVideosAsync(MockAuthenticationExtensions.TestSub, It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockVideosFirstCall.ToList().AsReadOnly())
             .ReturnsAsync(mockVideosSecondCall.ToList().AsReadOnly());
 

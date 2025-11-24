@@ -58,6 +58,7 @@ public partial class CommentScanWorker(
         foreach (var channel in channels)
         {
             var channelId = channel.ChannelId;
+            var userId = channel.UserId;
 
             foreach (var video in await videoRepository.GetCommentableVideosAsync(cancellationToken))
             {
@@ -69,7 +70,8 @@ public partial class CommentScanWorker(
                 //todo eliminate separate call and set the property if GetUnansweredTopLevelCommentsAsync throws an exception
                 if (video.CommentsAllowed is null)
                 {
-                    var isCommentAllowed = await yt.CheckCommentsAllowedAsync(video.VideoId, cancellationToken);
+                    var isCommentAllowed = await yt.CheckCommentsAllowedAsync(userId, video.VideoId,
+                        cancellationToken);
                     if (isCommentAllowed.HasValue)
                     {
                         video.SetCommentsAllowed(isCommentAllowed.Value);
@@ -84,8 +86,8 @@ public partial class CommentScanWorker(
                     continue;
                 }
 
-                await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(channelId, video.VideoId,
-                                   cancellationToken))
+                await foreach (var thread in yt.GetUnansweredTopLevelCommentsAsync(userId, channelId,
+                                   video.VideoId, cancellationToken))
                 {
                     if (drafted >= _opt.MaxDraftsPerRun)
                     {
