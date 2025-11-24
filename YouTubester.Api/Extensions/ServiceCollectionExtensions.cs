@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
                 o.ClientSecret = configuration["GoogleAuth:ClientSecret"]!;
                 o.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 o.SaveTokens = true;
+                o.AccessType = "offline";
                 o.CallbackPath = "/auth/callback/google";
                 o.CorrelationCookie.SameSite = SameSiteMode.None;
                 o.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;

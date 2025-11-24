@@ -58,20 +58,6 @@ public sealed class VideosController(
         return Ok(res);
     }
 
-    [HttpPost("sync/{channelName}")]
-    [ProducesResponseType(typeof(SyncVideosResult), StatusCodes.Status200OK)]
-    public async Task<ActionResult<SyncVideosResult>> Sync([FromRoute] string channelName, CancellationToken ct)
-    {
-        var channel = await channelRepository.GetChannelByNameAsync(channelName, ct);
-        if (channel is null)
-        {
-            return NotFound(new { message = $"Channel '{channelName}' not found." });
-        }
-
-        var result = await service.SyncChannelVideosAsync(channel.UploadsPlaylistId, ct);
-        return Ok(result);
-    }
-
     /// <summary>
     /// Gets a paginated list of videos with optional title and visibility filters.
     /// </summary>
