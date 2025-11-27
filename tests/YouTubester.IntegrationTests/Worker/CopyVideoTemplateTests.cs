@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using AutoFixture;
-using FluentAssertions;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,15 +61,15 @@ public class CopyVideoTemplateTests(TestFixture fixture)
             CancellationToken.None);
         response.EnsureSuccessStatusCode();
         // Act & Assert - Worker host builds and services are available
-        fixture.WorkerServices.Should().NotBeNull();
+        Assert.NotNull(fixture.WorkerServices);
 
         // Verify we can resolve job types from DI
         var copyTemplateJob = fixture.WorkerServices.GetRequiredService<CopyVideoTemplateJob>();
-        copyTemplateJob.Should().NotBeNull();
+        Assert.NotNull(copyTemplateJob);
 
         // Verify capturing client is registered
         var jobClient = fixture.WorkerServices.GetRequiredService<IBackgroundJobClient>();
-        jobClient.Should().BeOfType<CapturingBackgroundJobClient>();
+        Assert.IsType<CapturingBackgroundJobClient>(jobClient);
         var capturingClient = (CapturingBackgroundJobClient)jobClient;
 
         await capturingClient.RunAllAsync<CopyVideoTemplateJob>(fixture.WorkerServices);
@@ -98,16 +97,15 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         {
             var db = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
             var updatedTarget = await db.Videos.FindAsync(targetVideo.VideoId);
-            updatedTarget.Should().NotBeNull();
-            updatedTarget.Title.Should().Be(sourceVideo.Title);
-            updatedTarget.Description.Should().Be(sourceVideo.Description);
-            updatedTarget.Tags.Should()
-                .BeEquivalentTo(sourceVideo.Tags, opts => opts.WithStrictOrdering());
-            updatedTarget.CategoryId.Should().Be(sourceVideo.CategoryId);
-            updatedTarget.DefaultLanguage.Should().Be(sourceVideo.DefaultLanguage);
-            updatedTarget.DefaultAudioLanguage.Should().Be(sourceVideo.DefaultAudioLanguage);
-            updatedTarget.Location.Should().Be(sourceVideo.Location);
-            updatedTarget.LocationDescription.Should().Be(sourceVideo.LocationDescription);
+            Assert.NotNull(updatedTarget);
+            Assert.Equal(sourceVideo.Title, updatedTarget.Title);
+            Assert.Equal(sourceVideo.Description, updatedTarget.Description);
+            Assert.Equal(sourceVideo.Tags, updatedTarget.Tags);
+            Assert.Equal(sourceVideo.CategoryId, updatedTarget.CategoryId);
+            Assert.Equal(sourceVideo.DefaultLanguage, updatedTarget.DefaultLanguage);
+            Assert.Equal(sourceVideo.DefaultAudioLanguage, updatedTarget.DefaultAudioLanguage);
+            Assert.Equal(sourceVideo.Location, updatedTarget.Location);
+            Assert.Equal(sourceVideo.LocationDescription, updatedTarget.LocationDescription);
 
             var srcMemberships = await db.VideoPlaylists
                 .Where(vp => vp.VideoId == sourceVideo.VideoId)
@@ -122,10 +120,10 @@ public class CopyVideoTemplateTests(TestFixture fixture)
                 .ToListAsync();
 
             // Source remains in A & B
-            srcMemberships.Should().BeEquivalentTo(["PL-A"], o => o.WithoutStrictOrdering());
+            Assert.Equal(["PL-A"], srcMemberships);
 
             // Target remains only in B (copy-template job does not change memberships)
-            tgtMemberships.Should().BeEquivalentTo(["PL-A"], o => o.WithoutStrictOrdering());
+            Assert.Equal(["PL-A"], tgtMemberships);
         }
     }
 
@@ -180,15 +178,15 @@ public class CopyVideoTemplateTests(TestFixture fixture)
             CancellationToken.None);
         response.EnsureSuccessStatusCode();
         // Act & Assert - Worker host builds and services are available
-        fixture.WorkerServices.Should().NotBeNull();
+        Assert.NotNull(fixture.WorkerServices);
 
         // Verify we can resolve job types from DI
         var copyTemplateJob = fixture.WorkerServices.GetRequiredService<CopyVideoTemplateJob>();
-        copyTemplateJob.Should().NotBeNull();
+        Assert.NotNull(copyTemplateJob);
 
         // Verify capturing client is registered
         var jobClient = fixture.WorkerServices.GetRequiredService<IBackgroundJobClient>();
-        jobClient.Should().BeOfType<CapturingBackgroundJobClient>();
+        Assert.IsType<CapturingBackgroundJobClient>(jobClient);
         var capturingClient = (CapturingBackgroundJobClient)jobClient;
 
         await capturingClient.RunAllAsync<CopyVideoTemplateJob>(fixture.WorkerServices);
@@ -216,16 +214,15 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         {
             var db = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
             var updatedTarget = await db.Videos.FindAsync(targetVideo.VideoId);
-            updatedTarget.Should().NotBeNull();
-            updatedTarget.Title.Should().Be(suggestedMetadata.Title);
-            updatedTarget.Description.Should().Be(suggestedMetadata.Description);
-            updatedTarget.Tags.Should()
-                .BeEquivalentTo(suggestedMetadata.Tags, opts => opts.WithStrictOrdering());
-            updatedTarget.CategoryId.Should().Be(sourceVideo.CategoryId);
-            updatedTarget.DefaultLanguage.Should().Be(sourceVideo.DefaultLanguage);
-            updatedTarget.DefaultAudioLanguage.Should().Be(sourceVideo.DefaultAudioLanguage);
-            updatedTarget.Location.Should().Be(sourceVideo.Location);
-            updatedTarget.LocationDescription.Should().Be(sourceVideo.LocationDescription);
+            Assert.NotNull(updatedTarget);
+            Assert.Equal(suggestedMetadata.Title, updatedTarget.Title);
+            Assert.Equal(suggestedMetadata.Description, updatedTarget.Description);
+            Assert.Equal(suggestedMetadata.Tags, updatedTarget.Tags);
+            Assert.Equal(sourceVideo.CategoryId, updatedTarget.CategoryId);
+            Assert.Equal(sourceVideo.DefaultLanguage, updatedTarget.DefaultLanguage);
+            Assert.Equal(sourceVideo.DefaultAudioLanguage, updatedTarget.DefaultAudioLanguage);
+            Assert.Equal(sourceVideo.Location, updatedTarget.Location);
+            Assert.Equal(sourceVideo.LocationDescription, updatedTarget.LocationDescription);
 
             var srcMemberships = await db.VideoPlaylists
                 .Where(vp => vp.VideoId == sourceVideo.VideoId)
@@ -240,10 +237,10 @@ public class CopyVideoTemplateTests(TestFixture fixture)
                 .ToListAsync();
 
             // Source remains in A & B
-            srcMemberships.Should().BeEquivalentTo(["PL-A"], o => o.WithoutStrictOrdering());
+            Assert.Equal(["PL-A"], srcMemberships);
 
             // Target remains only in B (copy-template job does not change memberships)
-            tgtMemberships.Should().BeEquivalentTo(["PL-A"], o => o.WithoutStrictOrdering());
+            Assert.Equal(["PL-A"], tgtMemberships);
         }
     }
 

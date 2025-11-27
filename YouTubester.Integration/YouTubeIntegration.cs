@@ -473,7 +473,8 @@ public sealed class YouTubeIntegration(
         {
             video.RecordingDetails.Location = new GeoPoint
             {
-                Latitude = location.Value.lat, Longitude = location.Value.lng
+                Latitude = location.Value.lat,
+                Longitude = location.Value.lng
             };
             video.RecordingDetails.LocationDescription = locationDescription;
         }

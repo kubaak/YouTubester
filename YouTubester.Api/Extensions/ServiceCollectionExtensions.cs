@@ -3,7 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using YouTubester.Abstractions.Auth;
 
 namespace YouTubester.Api.Extensions;

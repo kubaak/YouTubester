@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -28,10 +27,10 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/replies");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
-        content.Should().Be("[]");
+        Assert.Equal("[]", content);
     }
 
     [Fact]
@@ -76,23 +75,22 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/replies");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<JsonElement[]>(content, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result!.Should().HaveCount(1); // Only Suggested replies are returned for approval
+        Assert.NotNull(result);
+        Assert.Single(result!); // Only Suggested replies are returned for approval
 
         var comment1 = result.FirstOrDefault(r => r.GetProperty("commentId").GetString() == "comment1");
-        comment1.ValueKind.Should().NotBe(JsonValueKind.Undefined);
-        comment1.GetProperty("status").GetInt32().Should().Be((int)ReplyStatus.Suggested);
+        Assert.NotEqual(JsonValueKind.Undefined, comment1.ValueKind);
+        Assert.Equal((int)ReplyStatus.Suggested, comment1.GetProperty("status").GetInt32());
 
         // comment2 (Pulled status) should not be returned for approval
-        result.Should().NotContain(r => r.GetProperty("commentId").GetString() == "comment2");
-        result.Should()
-            .NotContain(r =>
-                r.GetProperty("commentId").GetString() == "comment3"); // Posted replies should not be returned
+        Assert.DoesNotContain(result, r => r.GetProperty("commentId").GetString() == "comment2");
+        Assert.DoesNotContain(result, r =>
+            r.GetProperty("commentId").GetString() == "comment3"); // Posted replies should not be returned
     }
 
     [Fact]
@@ -119,13 +117,13 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.DeleteAsync("/api/replies/comment-to-delete");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<JsonElement>(content, _serializerOptions);
 
-        result.ValueKind.Should().NotBe(JsonValueKind.Undefined);
-        result.GetProperty("commentId").GetString().Should().Be("comment-to-delete");
+        Assert.NotEqual(JsonValueKind.Undefined, result.ValueKind);
+        Assert.Equal("comment-to-delete", result.GetProperty("commentId").GetString());
 
         // Verify reply was deleted from database
         using var verificationScope = fixture.ApiServices.CreateScope();
@@ -133,7 +131,7 @@ public class RepliesTests(TestFixture fixture)
         var deletedReply = await verificationDatabaseContext.Replies
             .FirstOrDefaultAsync(r => r.CommentId == "comment-to-delete");
 
-        deletedReply.Should().BeNull();
+        Assert.Null(deletedReply);
     }
 
     [Fact]
@@ -146,7 +144,7 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.DeleteAsync("/api/replies/non-existent-comment");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -190,16 +188,16 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/replies/approve", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<BatchDecisionResultDto>(responseContent, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result!.Total.Should().Be(2);
-        result.Succeeded.Should().Be(2);
-        result.Failed.Should().Be(0);
-        result.Items.Should().HaveCount(2);
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Total);
+        Assert.Equal(2, result.Succeeded);
+        Assert.Equal(0, result.Failed);
+        Assert.Equal(2, result.Items.Count);
 
         // Verify replies were approved in database
         using var verificationScope = fixture.ApiServices.CreateScope();
@@ -208,10 +206,12 @@ public class RepliesTests(TestFixture fixture)
             .Where(r => r.CommentId == "comment1" || r.CommentId == "comment2")
             .ToListAsync();
 
-        approvedReplies.Should().HaveCount(2);
-        approvedReplies.Should().OnlyContain(r => r.Status == ReplyStatus.Approved);
-        approvedReplies.Should().Contain(r => r.CommentId == "comment1" && r.FinalText == "Approved text 1");
-        approvedReplies.Should().Contain(r => r.CommentId == "comment2" && r.FinalText == "Approved text 2");
+        Assert.Equal(2, approvedReplies.Count);
+        Assert.All(approvedReplies, r => Assert.Equal(ReplyStatus.Approved, r.Status));
+        Assert.Contains(approvedReplies,
+            r => r.CommentId == "comment1" && r.FinalText == "Approved text 1");
+        Assert.Contains(approvedReplies,
+            r => r.CommentId == "comment2" && r.FinalText == "Approved text 2");
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/replies/approve", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -276,20 +276,24 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/replies/batch-ignore", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<BatchIgnoreResult>(responseContent, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result!.Requested.Should().Be(4);
-        result.Ignored.Should().Be(2); // comment1 and comment2
-        result.AlreadyIgnored.Should().Be(0);
-        result.SkippedPosted.Should().Be(1); // comment3
-        result.NotFound.Should().Be(1); // non-existent
-        result.IgnoredIds.Should().BeEquivalentTo("comment1", "comment2");
-        result.SkippedPostedIds.Should().BeEquivalentTo("comment3");
-        result.NotFoundIds.Should().BeEquivalentTo("non-existent");
+        Assert.NotNull(result);
+        Assert.Equal(4, result!.Requested);
+        Assert.Equal(2, result.Ignored); // comment1 and comment2
+        Assert.Equal(0, result.AlreadyIgnored);
+        Assert.Equal(1, result.SkippedPosted); // comment3
+        Assert.Equal(1, result.NotFound); // non-existent
+        Assert.Equal(2, result.IgnoredIds.Length);
+        Assert.Contains("comment1", result.IgnoredIds);
+        Assert.Contains("comment2", result.IgnoredIds);
+        Assert.Single(result.SkippedPostedIds);
+        Assert.Contains("comment3", result.SkippedPostedIds);
+        Assert.Single(result.NotFoundIds);
+        Assert.Contains("non-existent", result.NotFoundIds);
 
         // Verify replies were ignored in database
         using var verificationScope = fixture.ApiServices.CreateScope();
@@ -298,8 +302,8 @@ public class RepliesTests(TestFixture fixture)
             .Where(r => r.CommentId == "comment1" || r.CommentId == "comment2")
             .ToListAsync();
 
-        ignoredReplies.Should().HaveCount(2);
-        ignoredReplies.Should().OnlyContain(r => r.Status == ReplyStatus.Ignored);
+        Assert.Equal(2, ignoredReplies.Count);
+        Assert.All(ignoredReplies, r => Assert.Equal(ReplyStatus.Ignored, r.Status));
     }
 
     [Fact]
@@ -316,9 +320,10 @@ public class RepliesTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/replies/batch-ignore", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        ;
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().Contain("CommentIds cannot be empty");
+        Assert.Contains("CommentIds cannot be empty", responseContent);
     }
 }

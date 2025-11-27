@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using YouTubester.Application;
@@ -29,14 +28,14 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/videos?pageSize=5");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result.Items.Should().BeEmpty();
-        result.NextPageToken.Should().BeNull();
+        Assert.NotNull(result);
+        Assert.Empty(result.Items);
+        Assert.Null(result.NextPageToken);
     }
 
     [Fact]
@@ -49,7 +48,7 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/videos?visibility=InvalidValue");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -62,14 +61,14 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/videos?visibility=Public&visibility=Unlisted");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result.Items.Should().BeEmpty();
-        result.NextPageToken.Should().BeNull();
+        Assert.NotNull(result);
+        Assert.Empty(result.Items);
+        Assert.Null(result.NextPageToken);
     }
 
     [Fact]
@@ -82,14 +81,14 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/videos?visibility=public&visibility=UNLISTED");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result.Items.Should().BeEmpty();
-        result.NextPageToken.Should().BeNull();
+        Assert.NotNull(result);
+        Assert.Empty(result.Items);
+        Assert.Null(result.NextPageToken);
     }
 
     [Fact]
@@ -116,14 +115,14 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/videos/copy-template", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().NotBeNullOrWhiteSpace();
+        Assert.False(string.IsNullOrWhiteSpace(responseContent));
 
         // Verify job was enqueued
         var enqueuedJobs = fixture.CapturingJobClient.GetEnqueued<Application.Jobs.CopyVideoTemplateJob>();
-        enqueuedJobs.Should().HaveCount(1);
+        Assert.Single(enqueuedJobs);
     }
 
     [Fact]
@@ -144,10 +143,10 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/videos/copy-template", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().Contain("SourceVideoId is required");
+        Assert.Contains("SourceVideoId is required", responseContent);
     }
 
     [Fact]
@@ -168,10 +167,10 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/videos/copy-template", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().Contain("TargetVideoId is required");
+        Assert.Contains("TargetVideoId is required", responseContent);
     }
 
     [Fact]
@@ -192,10 +191,10 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/videos/copy-template", content);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().Contain("SourceVideoId and TargetVideoId must be different");
+        Assert.Contains("SourceVideoId and TargetVideoId must be different", responseContent);
     }
 
     [Fact]
@@ -271,42 +270,42 @@ public class VideosTests(TestFixture fixture)
         var titleResponse = await fixture.HttpClient.GetAsync("/api/videos?title=cooking");
 
         // Assert - Title filter
-        titleResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, titleResponse.StatusCode);
 
         var titleContent = await titleResponse.Content.ReadAsStringAsync();
         var titleResult = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(titleContent, _serializerOptions);
 
-        titleResult.Should().NotBeNull();
-        titleResult!.Items.Should().HaveCount(1);
-        titleResult.Items.First().Title.Should().Be("Cooking Tutorial");
+        Assert.NotNull(titleResult);
+        Assert.Single(titleResult!.Items);
+        Assert.Equal("Cooking Tutorial", titleResult.Items.First().Title);
 
         // Act - Filter by visibility
         var visibilityResponse = await fixture.HttpClient.GetAsync("/api/videos?visibility=Public&visibility=Unlisted");
 
         // Assert - Visibility filter
-        visibilityResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, visibilityResponse.StatusCode);
 
         var visibilityContent = await visibilityResponse.Content.ReadAsStringAsync();
         var visibilityResult =
             JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(visibilityContent, _serializerOptions);
 
-        visibilityResult.Should().NotBeNull();
-        visibilityResult!.Items.Should().HaveCount(2);
-        visibilityResult.Items.Should().NotContain(v => v.Title == "Private Video");
+        Assert.NotNull(visibilityResult);
+        Assert.Equal(2, visibilityResult!.Items.Count);
+        Assert.DoesNotContain(visibilityResult.Items, v => v.Title == "Private Video");
 
         // Act - Test pagination
         var paginationResponse = await fixture.HttpClient.GetAsync("/api/videos?pageSize=2");
 
         // Assert - Pagination
-        paginationResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, paginationResponse.StatusCode);
 
         var paginationContent = await paginationResponse.Content.ReadAsStringAsync();
         var paginationResult =
             JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(paginationContent, _serializerOptions);
 
-        paginationResult.Should().NotBeNull();
-        paginationResult!.Items.Should().HaveCount(2);
-        paginationResult.NextPageToken.Should().NotBeNull();
+        Assert.NotNull(paginationResult);
+        Assert.Equal(2, paginationResult!.Items.Count);
+        Assert.NotNull(paginationResult.NextPageToken);
     }
 
     [Fact]
@@ -319,10 +318,10 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/videos?pageSize=150"); // Exceeds maximum
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().Contain("error");
+        Assert.Contains("error", responseContent);
     }
 
     [Fact]
@@ -335,10 +334,10 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/videos?pageToken=invalid-token");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().Contain("error");
+        Assert.Contains("error", responseContent);
     }
 
     [Fact]
@@ -351,13 +350,13 @@ public class VideosTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/videos?visibility=0&visibility=1");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PagedResult<VideoListItemDto>>(content, _serializerOptions);
 
-        result.Should().NotBeNull();
-        result!.Items.Should().BeEmpty(); // No videos in DB, but request should be valid
+        Assert.NotNull(result);
+        Assert.Empty(result!.Items); // No videos in DB, but request should be valid
     }
 
     private static async IAsyncEnumerable<T> CreateAsyncEnumerable<T>(IEnumerable<T> items)

@@ -2,12 +2,12 @@ using System.Security.Claims;
 using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Application;
 using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Videos;
 using YouTubester.Application.Exceptions;
 using YouTubester.Application.Jobs;
-using YouTubester.Abstractions.Channels;
 using YouTubester.Domain;
 
 namespace YouTubester.Api;
