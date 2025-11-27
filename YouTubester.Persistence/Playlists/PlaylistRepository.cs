@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using YouTubester.Abstractions.Playlists;
 using YouTubester.Domain;
 
 namespace YouTubester.Persistence.Playlists;

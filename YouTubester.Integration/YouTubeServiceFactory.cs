@@ -5,9 +5,9 @@ using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using YouTubester.Abstractions.Auth;
 using YouTubester.Integration.Configuration;
 using YouTubester.Integration.Exceptions;
-using YouTubester.Persistence.Users;
 
 namespace YouTubester.Integration;
 
@@ -25,7 +25,7 @@ public sealed class YouTubeServiceFactory(
 
         var authOptions = options.Value;
 
-        var userTokens = await userTokenStore.GetGoogleTokenAsync(userId, cancellationToken);
+        var userTokens = await userTokenStore.GetAsync(userId, cancellationToken);
         if (userTokens is null)
         {
             logger.LogWarning(
@@ -92,7 +92,7 @@ public sealed class YouTubeServiceFactory(
             $"Google tokens for user '{userId}' have expired and cannot be refreshed. The user must reconnect their Google account.");
     }
 
-    private static TokenResponse BuildTokenResponse(Domain.UserToken userToken)
+    private static TokenResponse BuildTokenResponse(UserTokenData userToken)
     {
         long? expiresInSeconds = null;
 

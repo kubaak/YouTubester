@@ -1,10 +1,10 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using YouTubester.Abstractions.Channels;
+using YouTubester.Abstractions.Replies;
+using YouTubester.Abstractions.Videos;
 using YouTubester.Domain;
 using YouTubester.Integration;
-using YouTubester.Persistence.Channels;
-using YouTubester.Persistence.Replies;
-using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Worker;
 

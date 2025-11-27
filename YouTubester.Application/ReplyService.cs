@@ -1,8 +1,8 @@
 ﻿using Hangfire;
+using YouTubester.Abstractions.Replies;
 using YouTubester.Application.Contracts.Replies;
 using YouTubester.Application.Jobs;
 using YouTubester.Domain;
-using YouTubester.Persistence.Replies;
 
 namespace YouTubester.Application;
 

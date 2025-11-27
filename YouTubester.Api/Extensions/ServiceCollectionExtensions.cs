@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.OpenApi.Models;
-using YouTubester.Persistence.Users;
+using YouTubester.Abstractions.Auth;
 
 namespace YouTubester.Api.Extensions;
 
@@ -106,13 +106,9 @@ public static class ServiceCollectionExtensions
                         }
 
                         var requestServices = context.HttpContext.RequestServices;
-                        var userRepository = requestServices.GetRequiredService<IUserRepository>();
                         var userTokenStore = requestServices.GetRequiredService<IUserTokenStore>();
-                        var now = DateTimeOffset.UtcNow;
                         var cancellationToken = context.HttpContext.RequestAborted;
-
-                        await userRepository.UpsertUserAsync(userId, email, name, picture, now, cancellationToken);
-                        await userTokenStore.UpsertGoogleTokenAsync(
+                        await userTokenStore.UpsertAsync(
                             userId,
                             accessToken,
                             refreshToken,

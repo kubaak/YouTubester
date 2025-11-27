@@ -1,4 +1,9 @@
 using Hangfire;
+using YouTubester.Abstractions.Auth;
+using YouTubester.Abstractions.Channels;
+using YouTubester.Abstractions.Playlists;
+using YouTubester.Abstractions.Replies;
+using YouTubester.Abstractions.Videos;
 using YouTubester.Application;
 using YouTubester.Application.Channels;
 using YouTubester.Application.Jobs;
@@ -38,7 +43,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVideoRepository, VideoRepository>();
         services.AddScoped<IPlaylistRepository, PlaylistRepository>();
         services.AddScoped<IReplyRepository, ReplyRepository>();
-        services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserTokenStore, UserTokenStore>();
 
         // App services & jobs

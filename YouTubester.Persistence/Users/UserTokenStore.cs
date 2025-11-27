@@ -1,11 +1,38 @@
 using Microsoft.EntityFrameworkCore;
-using YouTubester.Domain;
+using YouTubester.Abstractions.Auth;
 
 namespace YouTubester.Persistence.Users;
 
 public sealed class UserTokenStore(YouTubesterDb databaseContext) : IUserTokenStore
 {
-    public async Task UpsertGoogleTokenAsync(
+    public async Task<UserTokenData?> GetAsync(string userId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id must be a non-empty string.", nameof(userId));
+        }
+
+        var entity = await databaseContext.UserTokens
+            .AsNoTracking()
+            .FirstOrDefaultAsync(existingEntity => existingEntity.UserId == userId, cancellationToken);
+
+        if (entity is null)
+        {
+            return null;
+        }
+
+        var userTokenData = new UserTokenData
+        {
+            UserId = entity.UserId,
+            AccessToken = entity.AccessToken,
+            RefreshToken = entity.RefreshToken,
+            ExpiresAt = entity.ExpiresAt
+        };
+
+        return userTokenData;
+    }
+
+    public async Task UpsertAsync(
         string userId,
         string? accessToken,
         string? refreshToken,
@@ -17,33 +44,19 @@ public sealed class UserTokenStore(YouTubesterDb databaseContext) : IUserTokenSt
             throw new ArgumentException("User id must be a non-empty string.", nameof(userId));
         }
 
-        var userTokens = await databaseContext.UserTokens
-            .FirstOrDefaultAsync(entity => entity.UserId == userId, cancellationToken);
+        var entity = await databaseContext.UserTokens
+            .FirstOrDefaultAsync(existingEntity => existingEntity.UserId == userId, cancellationToken);
 
-        if (userTokens is null)
+        if (entity is null)
         {
-            userTokens = UserToken.Create(userId, refreshToken, accessToken, expiresAt);
-            await databaseContext.UserTokens.AddAsync(userTokens, cancellationToken);
+            entity = UserToken.Create(userId, refreshToken, accessToken, expiresAt);
+            await databaseContext.UserTokens.AddAsync(entity, cancellationToken);
         }
         else
         {
-            userTokens.UpdateTokens(refreshToken, accessToken, expiresAt);
+            entity.UpdateTokens(refreshToken, accessToken, expiresAt);
         }
 
         await databaseContext.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task<UserToken?> GetGoogleTokenAsync(string userId, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("User id must be a non-empty string.", nameof(userId));
-        }
-
-        var userTokens = await databaseContext.UserTokens
-            .AsNoTracking()
-            .FirstOrDefaultAsync(entity => entity.UserId == userId, cancellationToken);
-
-        return userTokens;
     }
 }

@@ -1,15 +1,13 @@
-using YouTubester.Domain;
-
-namespace YouTubester.Persistence.Users;
+namespace YouTubester.Abstractions.Auth;
 
 public interface IUserTokenStore
 {
-    Task UpsertGoogleTokenAsync(
+    Task<UserTokenData?> GetAsync(string userId, CancellationToken cancellationToken);
+
+    Task UpsertAsync(
         string userId,
         string? accessToken,
         string? refreshToken,
         DateTimeOffset? expiresAt,
         CancellationToken cancellationToken);
-
-    Task<UserToken?> GetGoogleTokenAsync(string userId, CancellationToken cancellationToken);
 }

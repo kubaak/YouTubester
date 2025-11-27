@@ -18,6 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\YouTubester.Abstractions\YouTubester.Abstractions.csproj"/>
         <ProjectReference Include="..\\YouTubester.Application\\YouTubester.Application.csproj"/>
     </ItemGroup>
 

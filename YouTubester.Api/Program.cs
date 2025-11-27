@@ -1,5 +1,10 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using YouTubester.Abstractions.Auth;
+using YouTubester.Abstractions.Channels;
+using YouTubester.Abstractions.Playlists;
+using YouTubester.Abstractions.Replies;
+using YouTubester.Abstractions.Videos;
 using YouTubester.Api.Extensions;
 using YouTubester.Api.Infrastructure;
 using YouTubester.Application;
@@ -24,7 +29,6 @@ builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddScoped<IChannelRepository, ChannelRepository>();
 builder.Services.AddScoped<IVideoRepository, VideoRepository>();
 builder.Services.AddScoped<IPlaylistRepository, PlaylistRepository>();
-builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserTokenStore, UserTokenStore>();
 builder.Services.AddSingleton<IAiClient, AiClient>();
 builder.Services.AddScoped<IReplyService, ReplyService>();
