@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Domain;
 
 namespace YouTubester.Persistence.Channels;

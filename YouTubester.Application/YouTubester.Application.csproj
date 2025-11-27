@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\YouTubester.Abstractions\YouTubester.Abstractions.csproj"/>
         <ProjectReference Include="..\YouTubester.Integration\YouTubester.Integration.csproj"/>
         <ProjectReference Include="..\YouTubester.Persistence\YouTubester.Persistence.csproj"/>
     </ItemGroup>

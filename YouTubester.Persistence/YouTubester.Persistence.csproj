@@ -19,6 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\YouTubester.Abstractions\YouTubester.Abstractions.csproj"/>
         <ProjectReference Include="..\YouTubester.Domain\YouTubester.Domain.csproj"/>
     </ItemGroup>
 

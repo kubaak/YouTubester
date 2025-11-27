@@ -7,8 +7,8 @@ using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Videos;
 using YouTubester.Application.Exceptions;
 using YouTubester.Application.Jobs;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Domain;
-using YouTubester.Persistence.Channels;
 
 namespace YouTubester.Api;
 

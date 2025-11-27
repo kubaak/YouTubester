@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using YouTubester.Abstractions.Videos;
 using YouTubester.Application.Common;
 using YouTubester.Application.Contracts;
 using YouTubester.Application.Contracts.Videos;
@@ -7,7 +8,6 @@ using YouTubester.Application.Exceptions;
 using YouTubester.Application.Options;
 using YouTubester.Domain;
 using YouTubester.Integration;
-using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application;
 

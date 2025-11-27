@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using YouTubester.Abstractions.Videos;
 using YouTubester.Domain;
 
 namespace YouTubester.Persistence.Videos;

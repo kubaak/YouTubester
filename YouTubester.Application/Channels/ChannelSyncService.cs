@@ -1,12 +1,11 @@
 using Microsoft.Extensions.Logging;
+using YouTubester.Abstractions.Channels;
+using YouTubester.Abstractions.Playlists;
+using YouTubester.Abstractions.Videos;
 using YouTubester.Application.Common;
 using YouTubester.Application.Contracts.Channels;
 using YouTubester.Domain;
 using YouTubester.Integration;
-using YouTubester.Persistence.Channels;
-using YouTubester.Persistence.Playlists;
-using YouTubester.Persistence.Users;
-using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application.Channels;
 
@@ -18,7 +17,6 @@ public sealed class ChannelSyncService(
     IYouTubeIntegration youTubeIntegration,
     IVideoRepository videoRepository,
     IChannelRepository channelRepository,
-    IUserTokenStore userTokenStore,
     ILogger<ChannelSyncService> logger) : IChannelSyncService
 {
     private const int VideoBatchSize = 100;

@@ -11,6 +11,7 @@ using YouTubester.Domain;
 using YouTubester.Integration.Dtos;
 using YouTubester.IntegrationTests.TestHost;
 using YouTubester.Persistence;
+using YouTubester.Persistence.Users;
 
 namespace YouTubester.IntegrationTests;
 

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using YouTubester.Domain;
+using YouTubester.Persistence.Users;
 using Channel = YouTubester.Domain.Channel;
 
 namespace YouTubester.Persistence;

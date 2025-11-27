@@ -1,6 +1,6 @@
 using Hangfire;
+using YouTubester.Abstractions.Replies;
 using YouTubester.Integration;
-using YouTubester.Persistence.Replies;
 
 namespace YouTubester.Application.Jobs;
 

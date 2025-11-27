@@ -1,7 +1,7 @@
+using YouTubester.Abstractions.Playlists;
+using YouTubester.Abstractions.Videos;
 using YouTubester.Domain;
 using YouTubester.Integration;
-using YouTubester.Persistence.Playlists;
-using YouTubester.Persistence.Videos;
 
 namespace YouTubester.Application;
 
