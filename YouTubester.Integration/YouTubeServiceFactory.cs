@@ -52,7 +52,8 @@ public sealed class YouTubeServiceFactory(
             {
                 ClientSecrets = new ClientSecrets
                 {
-                    ClientId = authOptions.ClientId, ClientSecret = authOptions.ClientSecret
+                    ClientId = authOptions.ClientId,
+                    ClientSecret = authOptions.ClientSecret
                 },
                 Scopes = [YouTubeService.Scope.YoutubeForceSsl]
             });
@@ -61,7 +62,8 @@ public sealed class YouTubeServiceFactory(
 
             return new YouTubeService(new BaseClientService.Initializer
             {
-                HttpClientInitializer = credential, ApplicationName = authOptions.ApplicationName
+                HttpClientInitializer = credential,
+                ApplicationName = authOptions.ApplicationName
             });
         }
 
@@ -78,7 +80,8 @@ public sealed class YouTubeServiceFactory(
 
             return new YouTubeService(new BaseClientService.Initializer
             {
-                HttpClientInitializer = googleCredential, ApplicationName = authOptions.ApplicationName
+                HttpClientInitializer = googleCredential,
+                ApplicationName = authOptions.ApplicationName
             });
         }
 

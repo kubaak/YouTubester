@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -42,7 +41,7 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // --- Act #1: create ---
         var createResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{inputChannelName}", null);
-        createResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
 
         // Assert DB after creation
         using (var scope = fixture.ApiServices.CreateScope())
@@ -50,17 +49,17 @@ public sealed class ChannelTests(TestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
             var ch = await db.Channels.AsNoTracking().SingleOrDefaultAsync(c => c.ChannelId == channelId);
 
-            ch.Should().NotBeNull();
-            ch!.Name.Should().Be(nameV1);
-            ch.UploadsPlaylistId.Should().Be(uploadsIdV1);
-            ch.ETag.Should().Be(etagV1);
-            ch.LastUploadsCutoff.Should().BeNull(); // not set by pull
-            ch.UpdatedAt.Should().BeAfter(TestFixture.TestingDateTimeOffset); // sanity check it's set
+            Assert.NotNull(ch);
+            Assert.Equal(nameV1, ch!.Name);
+            Assert.Equal(uploadsIdV1, ch.UploadsPlaylistId);
+            Assert.Equal(etagV1, ch.ETag);
+            Assert.Null(ch.LastUploadsCutoff); // not set by pull
+            Assert.True(ch.UpdatedAt > TestFixture.TestingDateTimeOffset); // sanity check it's set
         }
 
         // --- Act #2: update (different name, uploads, etag) ---
         var updateResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{inputChannelName}", null);
-        updateResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, updateResp.StatusCode);
 
         // Assert DB after update
         using (var scope = fixture.ApiServices.CreateScope())
@@ -68,10 +67,10 @@ public sealed class ChannelTests(TestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
             var ch = await db.Channels.AsNoTracking().SingleOrDefaultAsync(c => c.ChannelId == channelId);
 
-            ch.Should().NotBeNull();
-            ch!.Name.Should().Be(nameV2);
-            ch.UploadsPlaylistId.Should().Be(uploadsIdV2);
-            ch.ETag.Should().Be(etagV2);
+            Assert.NotNull(ch);
+            Assert.Equal(nameV2, ch!.Name);
+            Assert.Equal(uploadsIdV2, ch.UploadsPlaylistId);
+            Assert.Equal(etagV2, ch.ETag);
         }
 
         // Verify the integration was called twice with the same input name
@@ -125,18 +124,18 @@ public sealed class ChannelTests(TestFixture fixture)
         var response = await fixture.HttpClient.GetAsync("/api/channels/available");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         var deserialized = JsonSerializer.Deserialize<List<AvailableChannelDto>>(responseContent, options);
 
-        deserialized.Should().NotBeNull();
-        deserialized!.Should().HaveCount(2);
-        deserialized[0].Id.Should().Be("UCChannelId1");
-        deserialized[0].Name.Should().Be("First Channel");
-        deserialized[1].Id.Should().Be("UCChannelId2");
-        deserialized[1].UploadsPlaylistId.Should().Be("UploadsPlaylistId2");
+        Assert.NotNull(deserialized);
+        Assert.Equal(2, deserialized!.Count);
+        Assert.Equal("UCChannelId1", deserialized[0].Id);
+        Assert.Equal("First Channel", deserialized[0].Name);
+        Assert.Equal("UCChannelId2", deserialized[1].Id);
+        Assert.Equal("UploadsPlaylistId2", deserialized[1].UploadsPlaylistId);
 
         fixture.ApiFactory.MockYouTubeIntegration.Verify(
             x => x.GetUserChannelsAsync(MockAuthenticationExtensions.TestSub, It.IsAny<CancellationToken>()),
@@ -153,22 +152,22 @@ public sealed class ChannelTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync("/api/channels/sync", null);
 
         // Assert HTTP response
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
         using var jsonDocument = JsonDocument.Parse(responseContent);
         var rootElement = jsonDocument.RootElement;
-        rootElement.TryGetProperty("status", out var statusProperty).Should().BeTrue();
-        statusProperty.GetString().Should().Be("scheduled");
+        Assert.True(rootElement.TryGetProperty("status", out var statusProperty));
+        Assert.Equal("scheduled", statusProperty.GetString());
 
         // Assert background job was enqueued for the current user
         var capturedJobs = fixture.CapturingJobClient.GetEnqueued<IChannelSyncService>();
-        capturedJobs.Should().HaveCount(1);
+        Assert.Single(capturedJobs);
 
         var capturedJob = capturedJobs.Single();
-        capturedJob.Job.Method.Name.Should().Be(nameof(IChannelSyncService.SyncChannelsForUserAsync));
-        capturedJob.Job.Args.Should().HaveCount(2);
-        capturedJob.Job.Args[0].Should().Be(MockAuthenticationExtensions.TestSub);
+        Assert.Equal(nameof(IChannelSyncService.SyncChannelsForUserAsync), capturedJob.Job.Method.Name);
+        Assert.Equal(2, capturedJob.Job.Args.Count);
+        Assert.Equal(MockAuthenticationExtensions.TestSub, capturedJob.Job.Args[0]);
     }
 
     [Fact(Skip = "Endpoint removed")]
@@ -253,7 +252,8 @@ public sealed class ChannelTests(TestFixture fixture)
 
         var mockPlaylistVideoIds = new Dictionary<string, List<string>>
         {
-            ["playlist123"] = ["video123", "video456"], ["playlist456"] = ["video456"]
+            ["playlist123"] = ["video123", "video456"],
+            ["playlist456"] = ["video456"]
         };
 
         // Setup MockYouTubeIntegration
@@ -286,18 +286,18 @@ public sealed class ChannelTests(TestFixture fixture)
         var response = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var syncResult = JsonSerializer.Deserialize<ChannelSyncResult>(responseContent,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        syncResult.Should().NotBeNull();
-        syncResult.VideosInserted.Should().Be(2);
-        syncResult.VideosUpdated.Should().Be(0);
-        syncResult.PlaylistsInserted.Should().Be(2);
-        syncResult.PlaylistsUpdated.Should().Be(0);
-        syncResult.MembershipsAdded.Should().Be(3);
+        Assert.NotNull(syncResult);
+        Assert.Equal(2, syncResult.VideosInserted);
+        Assert.Equal(0, syncResult.VideosUpdated);
+        Assert.Equal(2, syncResult.PlaylistsInserted);
+        Assert.Equal(0, syncResult.PlaylistsUpdated);
+        Assert.Equal(3, syncResult.MembershipsAdded);
 
         // Assert database state
         using var verificationScope = fixture.ApiServices.CreateScope();
@@ -310,19 +310,19 @@ public sealed class ChannelTests(TestFixture fixture)
             .OrderBy(v => v.VideoId)
             .ToListAsync();
 
-        createdVideos.Should().HaveCount(2);
+        Assert.Equal(2, createdVideos.Count);
 
         var firstVideo = createdVideos.First(v => v.VideoId == "video123");
-        firstVideo.Title.Should().Be("Test Video 1");
-        firstVideo.Duration.Should().Be(TimeSpan.FromMinutes(5));
-        firstVideo.Visibility.Should().Be(VideoVisibility.Public);
-        firstVideo.PublishedAt.Should().Be(new DateTimeOffset(2024, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal("Test Video 1", firstVideo.Title);
+        Assert.Equal(TimeSpan.FromMinutes(5), firstVideo.Duration);
+        Assert.Equal(VideoVisibility.Public, firstVideo.Visibility);
+        Assert.Equal(new DateTimeOffset(2024, 1, 1, 12, 0, 0, TimeSpan.Zero), firstVideo.PublishedAt);
 
         var secondVideo = createdVideos.First(v => v.VideoId == "video456");
-        secondVideo.Title.Should().Be("Test Video 2");
-        secondVideo.Duration.Should().Be(TimeSpan.FromMinutes(10));
-        secondVideo.Visibility.Should().Be(VideoVisibility.Unlisted);
-        secondVideo.PublishedAt.Should().Be(new DateTimeOffset(2024, 1, 2, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal("Test Video 2", secondVideo.Title);
+        Assert.Equal(TimeSpan.FromMinutes(10), secondVideo.Duration);
+        Assert.Equal(VideoVisibility.Unlisted, secondVideo.Visibility);
+        Assert.Equal(new DateTimeOffset(2024, 1, 2, 12, 0, 0, TimeSpan.Zero), secondVideo.PublishedAt);
 
         // Verify playlists were created
         var createdPlaylists = await verificationDatabaseContext.Playlists
@@ -331,11 +331,11 @@ public sealed class ChannelTests(TestFixture fixture)
             .OrderBy(p => p.PlaylistId)
             .ToListAsync();
 
-        createdPlaylists.Should().HaveCount(2);
-        createdPlaylists[0].PlaylistId.Should().Be("playlist123");
-        createdPlaylists[0].Title.Should().Be("Test Playlist 1");
-        createdPlaylists[1].PlaylistId.Should().Be("playlist456");
-        createdPlaylists[1].Title.Should().Be("Test Playlist 2");
+        Assert.Equal(2, createdPlaylists.Count);
+        Assert.Equal("playlist123", createdPlaylists[0].PlaylistId);
+        Assert.Equal("Test Playlist 1", createdPlaylists[0].Title);
+        Assert.Equal("playlist456", createdPlaylists[1].PlaylistId);
+        Assert.Equal("Test Playlist 2", createdPlaylists[1].Title);
 
         // Verify playlist memberships were created
         var memberships = await verificationDatabaseContext.VideoPlaylists
@@ -344,19 +344,19 @@ public sealed class ChannelTests(TestFixture fixture)
             .ThenBy(vp => vp.VideoId)
             .ToListAsync();
 
-        memberships.Should().HaveCount(3);
-        memberships.Should().Contain(vp => vp.PlaylistId == "playlist123" && vp.VideoId == "video123");
-        memberships.Should().Contain(vp => vp.PlaylistId == "playlist123" && vp.VideoId == "video456");
-        memberships.Should().Contain(vp => vp.PlaylistId == "playlist456" && vp.VideoId == "video456");
+        Assert.Equal(3, memberships.Count);
+        Assert.Contains(memberships, vp => vp.PlaylistId == "playlist123" && vp.VideoId == "video123");
+        Assert.Contains(memberships, vp => vp.PlaylistId == "playlist123" && vp.VideoId == "video456");
+        Assert.Contains(memberships, vp => vp.PlaylistId == "playlist456" && vp.VideoId == "video456");
 
         // Verify channel uploads cutoff was updated
         var updatedChannel = await verificationDatabaseContext.Channels
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.ChannelId == testChannelId);
 
-        updatedChannel.Should().NotBeNull();
-        updatedChannel.LastUploadsCutoff.Should().NotBeNull();
-        updatedChannel.LastUploadsCutoff.Should().Be(new DateTimeOffset(2024, 1, 2, 12, 0, 0, TimeSpan.Zero));
+        Assert.NotNull(updatedChannel);
+        Assert.NotNull(updatedChannel.LastUploadsCutoff);
+        Assert.Equal(new DateTimeOffset(2024, 1, 2, 12, 0, 0, TimeSpan.Zero), updatedChannel.LastUploadsCutoff);
     }
 
     [Fact(Skip = "Endpoint removed")]
@@ -468,20 +468,20 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // Act - First call
         var firstResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
-        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
 
         // Act - Second call
         var secondResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
-        secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
 
         var secondResponseContent = await secondResponse.Content.ReadAsStringAsync();
         var secondSyncResult = JsonSerializer.Deserialize<ChannelSyncResult>(secondResponseContent,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         // Assert
-        secondSyncResult.Should().NotBeNull();
-        secondSyncResult.VideosInserted.Should().Be(0);
-        secondSyncResult.VideosUpdated.Should().Be(1);
+        Assert.NotNull(secondSyncResult);
+        Assert.Equal(0, secondSyncResult.VideosInserted);
+        Assert.Equal(1, secondSyncResult.VideosUpdated);
 
         // Verify only one video exists and it was updated
         using var verificationScope = fixture.ApiServices.CreateScope();
@@ -492,9 +492,9 @@ public sealed class ChannelTests(TestFixture fixture)
             .Where(v => v.UploadsPlaylistId == testUploadsPlaylistId)
             .ToListAsync();
 
-        videos.Should().HaveCount(1);
-        videos[0].VideoId.Should().Be("video789");
-        videos[0].Title.Should().Be("Updated Title");
+        Assert.Single(videos);
+        Assert.Equal("video789", videos[0].VideoId);
+        Assert.Equal("Updated Title", videos[0].Title);
     }
 
     private static async IAsyncEnumerable<T> CreateAsyncEnumerable<T>(IEnumerable<T> items)
