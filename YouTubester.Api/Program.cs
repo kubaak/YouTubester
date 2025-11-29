@@ -51,12 +51,24 @@ app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapControllers();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
     app.UseHangfireDashboard();
+    app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api"), spa =>
+    {
+        spa.UseSpa(spaApp =>
+        {
+            spaApp.Options.SourcePath = "../YouTubester.Client";
+            if (app.Environment.IsDevelopment())
+            {
+                spaApp.UseProxyToSpaDevelopmentServer("http://localhost:5173");
+            }
+        });
+    });
 
     var cfg = app.Services.GetRequiredService<IConfiguration>();
     if (cfg.GetValue<bool>("Seed:Enable"))
@@ -68,8 +80,16 @@ if (app.Environment.IsDevelopment())
         await DbSeeder.SeedAsync(db);
     }
 }
+else
+{
+    app.UseHangfireDashboard();
+    app.UseSpa(spa =>
+    {
+        spa.Options.SourcePath = "wwwroot";
+    });
+}
 
-app.MapControllers();
+
 app.Run();
 
 namespace YouTubester.Api
