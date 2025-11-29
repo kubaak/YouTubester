@@ -11,7 +11,7 @@ namespace YouTubester.Api;
 /// Authentication Controller
 /// </summary>
 [ApiController]
-[Route("auth")]
+[Route("api/auth")]
 [Tags("Authentication")]
 [Authorize]
 public sealed class AuthController : ControllerBase
@@ -23,6 +23,7 @@ public sealed class AuthController : ControllerBase
     /// <returns></returns>
     [HttpGet("login/google")]
     [AllowAnonymous]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult LoginWithGoogle([FromQuery] string? returnUrl = "/")
     {
         if (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl))
