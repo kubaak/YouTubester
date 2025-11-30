@@ -27,21 +27,21 @@ public sealed class ChannelSyncService(
     /// - Otherwise applies a remote snapshot (Name, UploadsPlaylistId, ETag) and updates only if changed.
     /// Returns the up-to-date aggregate.
     /// </summary>
-    public async Task<Channel> PullChannelAsync(string userId, string channelName, CancellationToken cancellationToken)
+    public async Task<Channel> PullChannelAsync(string userId, string channelId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
             throw new ArgumentException("User id is required.", nameof(userId));
         }
 
-        if (string.IsNullOrWhiteSpace(channelName))
+        if (string.IsNullOrWhiteSpace(channelId))
         {
-            throw new ArgumentException("Channel name is required.", nameof(channelName));
+            throw new ArgumentException("Channel id is required.", nameof(channelId));
         }
 
         // Pull canonical channel details (ChannelId, Title, UploadsPlaylistId, ETag)
-        var channelDto = await youTubeIntegration.GetChannelAsync(userId, channelName, cancellationToken) ??
-                         throw new NotFoundException($"Channel '{channelName}' not found on YouTube.");
+        var channelDto = await youTubeIntegration.GetChannelAsync(userId, channelId, cancellationToken) ??
+                         throw new NotFoundException($"Channel '{channelId}' not found on YouTube.");
 
         var now = DateTimeOffset.UtcNow;
 
@@ -79,6 +79,28 @@ public sealed class ChannelSyncService(
         }
 
         return existingChannel;
+    }
+
+    public async Task<ChannelSyncResult> SyncChannelAsync(string userId, string channelId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
+        if (string.IsNullOrWhiteSpace(channelId))
+        {
+            throw new ArgumentException("Channel id is required.", nameof(channelId));
+        }
+
+        var channel = await channelRepository.GetChannelAsync(channelId, cancellationToken);
+        if (channel is null || !string.Equals(channel.UserId, userId, StringComparison.Ordinal))
+        {
+            throw new NotFoundException($"Channel '{channelId}' not found for user '{userId}'.");
+        }
+
+        var currentTime = DateTimeOffset.UtcNow;
+        return await SyncInternalAsync(userId, channel, currentTime, cancellationToken);
     }
 
     public async Task<IReadOnlyList<AvailableChannelDto>> GetAvailableYoutubeChannelsForUserAsync(

@@ -5,7 +5,12 @@ namespace YouTubester.Application.Channels;
 
 public interface IChannelSyncService
 {
-    Task<Channel> PullChannelAsync(string userId, string channelName, CancellationToken cancellationToken);
+    Task<Channel> PullChannelAsync(string userId, string channelId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Synchronizes a single channel for the specified user.
+    /// </summary>
+    Task<ChannelSyncResult> SyncChannelAsync(string userId, string channelId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Returns all YouTube channels available to pull for the specified user.

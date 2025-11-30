@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Security.Claims;
+using Google.Apis.YouTube.v3;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
@@ -72,7 +73,10 @@ public static class ServiceCollectionExtensions
                 o.CallbackPath = "/auth/callback/google";
                 o.CorrelationCookie.SameSite = SameSiteMode.None;
                 o.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+                o.Scope.Add("openid");
                 o.Scope.Add("profile");
+                o.Scope.Add("email");
+                o.Scope.Add(YouTubeService.Scope.YoutubeForceSsl);
                 o.ClaimActions.MapJsonKey("picture", "picture");
 
                 o.Events = new OAuthEvents
@@ -139,7 +143,7 @@ public static class ServiceCollectionExtensions
                 Version = "v1",
                 Description =
                     "To access protected endpoints, first log in:\n\n" +
-                    "[🔐 Login with Google](/auth/login/google?returnUrl=/swagger/index.html)"
+                    "[🔐 Login with Google](/api/auth/login/google?returnUrl=/swagger/index.html)"
             });
 
             var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";

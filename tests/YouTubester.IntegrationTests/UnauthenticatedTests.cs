@@ -13,7 +13,7 @@ public sealed class UnauthenticatedTests(WebApplicationFactory<Api.Program> fact
     [Fact]
     public async Task Me_WhenNotAuthenticated_Returns401()
     {
-        var response = await _client.GetAsync("/auth/me");
+        var response = await _client.GetAsync("api/auth/me");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Null(response.Headers.Location); // no redirect to /Account/Login
@@ -22,7 +22,7 @@ public sealed class UnauthenticatedTests(WebApplicationFactory<Api.Program> fact
     [Fact]
     public async Task Logout_WhenNotAuthenticated_Returns401()
     {
-        var response = await _client.PostAsync("/auth/logout", null);
+        var response = await _client.PostAsync("api/auth/logout", null);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -30,7 +30,7 @@ public sealed class UnauthenticatedTests(WebApplicationFactory<Api.Program> fact
     [Fact]
     public async Task LoginWithGoogle_ReturnsRedirectChallenge()
     {
-        var response = await _client.GetAsync("/auth/login/google?returnUrl=/swagger/index.html");
+        var response = await _client.GetAsync("api/auth/login/google?returnUrl=/swagger/index.html");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.NotNull(response.Headers.Location);

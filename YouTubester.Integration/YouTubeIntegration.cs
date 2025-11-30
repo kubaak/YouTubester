@@ -13,9 +13,9 @@ public sealed class YouTubeIntegration(
     IYouTubeServiceFactory youTubeServiceFactory,
     ILogger<YouTubeIntegration> logger) : IYouTubeIntegration
 {
-    public async Task<ChannelDto?> GetChannelAsync(string userId, string channelName, CancellationToken cancellationToken)
+    public async Task<ChannelDto?> GetChannelAsync(string userId, string channelId, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(channelName))
+        if (string.IsNullOrWhiteSpace(channelId))
         {
             return null;
         }
@@ -24,27 +24,11 @@ public sealed class YouTubeIntegration(
         {
             var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
 
-            // 1) Find the channelId by name using Search (most reliable if caller provides a human name)
-            var search = youTubeService.Search.List("snippet");
-            search.Q = channelName;
-            search.Type = "channel";
-            search.MaxResults = 1;
-
-            var searchRes = await search.ExecuteAsync();
-            var first = searchRes.Items?.FirstOrDefault();
-            var channelId = first?.Snippet?.ChannelId;
-
-            if (string.IsNullOrWhiteSpace(channelId))
-            {
-                logger.LogWarning("No channel found for name '{ChannelName}'", channelName);
-                return null;
-            }
-
-            // 2) Fetch channel details to get uploads playlist + title + ETag
+            // Fetch channel details by id to get uploads playlist + title + ETag
             var channelRequest = youTubeService.Channels.List("snippet,contentDetails");
             channelRequest.Id = channelId;
 
-            var channelResponse = await channelRequest.ExecuteAsync();
+            var channelResponse = await channelRequest.ExecuteAsync(cancellationToken);
             var channel = channelResponse.Items?.FirstOrDefault();
             if (channel is null)
             {
@@ -59,11 +43,11 @@ public sealed class YouTubeIntegration(
                 return null;
             }
 
-            var title = channel.Snippet?.Title ?? channelName;
+            var title = channel.Snippet?.Title ?? channelId;
             var etag = channel.ETag;
 
             return new ChannelDto(
-                channelId,
+                channel.Id!,
                 title,
                 uploadsPlaylistId,
                 etag
@@ -71,12 +55,12 @@ public sealed class YouTubeIntegration(
         }
         catch (GoogleApiException ex)
         {
-            logger.LogError(ex, "YouTube API error while getting channel for '{ChannelName}'", channelName);
+            logger.LogError(ex, "YouTube API error while getting channel for id '{ChannelId}'", channelId);
             return null;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Unexpected error while getting channel for '{ChannelName}'", channelName);
+            logger.LogError(ex, "Unexpected error while getting channel for id '{ChannelId}'", channelId);
             return null;
         }
     }
