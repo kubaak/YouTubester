@@ -5,6 +5,7 @@ using YouTubester.Abstractions.Channels;
 using YouTubester.Abstractions.Playlists;
 using YouTubester.Abstractions.Replies;
 using YouTubester.Abstractions.Videos;
+using YouTubester.Api.Auth;
 using YouTubester.Api.Extensions;
 using YouTubester.Api.Infrastructure;
 using YouTubester.Application;
@@ -23,8 +24,10 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwagger();
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
+builder.Services.AddScoped<ICurrentUserTokenAccessor, CurrentUserTokenAccessor>();
 builder.Services.AddScoped<IReplyRepository, ReplyRepository>();
 builder.Services.AddScoped<IChannelRepository, ChannelRepository>();
 builder.Services.AddScoped<IVideoRepository, VideoRepository>();

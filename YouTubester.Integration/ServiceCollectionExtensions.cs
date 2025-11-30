@@ -11,7 +11,6 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddYoutubeServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<YouTubeAuthOptions>(configuration.GetSection("YouTubeAuth"));
-        services.AddScoped<IYouTubeServiceFactory, YouTubeServiceFactory>();
         services.AddScoped<IYouTubeIntegration, YouTubeIntegration>();
         return services;
     }

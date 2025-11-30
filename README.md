@@ -61,6 +61,10 @@ Run the following in the solution root's folder
 ```
 dotnet ef database update -p YouTubester.Persistence
 ```
+Adding migrations
+```
+dotnet ef migrations add [migrationsName] -p YouTubester.Persistence                   
+```
 
 ## 🌐 Running the API
 ```
