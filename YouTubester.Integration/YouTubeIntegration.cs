@@ -8,6 +8,7 @@ using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
 using Microsoft.Extensions.Logging;
 using YouTubester.Abstractions.Auth;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Integration.Dtos;
 
 namespace YouTubester.Integration;
@@ -25,7 +26,7 @@ public sealed class YouTubeIntegration(
 
         try
         {
-            var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+            var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
             // Fetch channel details by id to get uploads playlist + title + ETag
             var channelRequest = youTubeService.Channels.List("snippet,contentDetails");
@@ -68,12 +69,75 @@ public sealed class YouTubeIntegration(
         }
     }
 
+    public async Task<UserChannelDto?> GetCurrentChannelAsync(string accessToken, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            return null;
+        }
+
+        try
+        {
+            var youTubeService = CreateReadOnlyServiceAsync(accessToken);
+
+            var channelsRequest = youTubeService.Channels.List("snippet");
+            channelsRequest.Mine = true;
+            channelsRequest.MaxResults = 1;
+
+            var channelsResponse = await channelsRequest.ExecuteAsync(cancellationToken);
+            var channel = channelsResponse.Items?.FirstOrDefault();
+            if (channel is null || string.IsNullOrWhiteSpace(channel.Id))
+            {
+                logger.LogInformation(
+                    "No current channel found for authenticated user when discovering channel from token.");
+                return null;
+            }
+
+            var title = channel.Snippet?.Title ?? channel.Id;
+
+            string? picture = null;
+            var thumbnails = channel.Snippet?.Thumbnails;
+            if (thumbnails is not null)
+            {
+                var thumbnailCandidates = new[]
+                {
+                    thumbnails.Maxres, thumbnails.Standard, thumbnails.High, thumbnails.Medium, thumbnails.Default__
+                };
+
+                foreach (var thumbnail in thumbnailCandidates)
+                {
+                    if (!string.IsNullOrWhiteSpace(thumbnail?.Url))
+                    {
+                        picture = thumbnail.Url;
+                        break;
+                    }
+                }
+            }
+
+            return new UserChannelDto(
+                channel.Id,
+                title,
+                picture
+            );
+        }
+        catch (GoogleApiException ex)
+        {
+            logger.LogError(ex, "YouTube API error while discovering current channel from access token.");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while discovering current channel from access token.");
+            return null;
+        }
+    }
+
     public async Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId,
         CancellationToken cancellationToken)
     {
         try
         {
-            var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+            var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
             var channels = new List<ChannelDto>();
             string? pageToken = null;
@@ -138,7 +202,7 @@ public sealed class YouTubeIntegration(
         DateTimeOffset? publishedAfter,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
         string? page = null;
 
@@ -257,7 +321,7 @@ public sealed class YouTubeIntegration(
     {
         try
         {
-            var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+            var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
             // First check if video is made for kids (short-circuit)
             var videoRequest = youTubeService.Videos.List("status");
@@ -313,7 +377,7 @@ public sealed class YouTubeIntegration(
             return Array.Empty<VideoDto>();
         }
 
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
         var videoRequest = youTubeService.Videos.List("snippet,contentDetails,status,recordingDetails");
         videoRequest.Id = string.Join(",", videoIdsList);
@@ -367,7 +431,7 @@ public sealed class YouTubeIntegration(
         string videoId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
         string? page = null;
         do
@@ -418,7 +482,7 @@ public sealed class YouTubeIntegration(
     public async Task ReplyAsync(string userId, string parentCommentId, string text,
         CancellationToken cancellationToken)
     {
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
         var comment = new Comment { Snippet = new CommentSnippet { ParentId = parentCommentId, TextOriginal = text } };
 
         await youTubeService.Comments.Insert(comment, "snippet").ExecuteAsync(cancellationToken);
@@ -437,7 +501,7 @@ public sealed class YouTubeIntegration(
         string? locationDescription,
         CancellationToken cancellationToken)
     {
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
         var snippet = new VideoSnippet
         {
@@ -470,7 +534,7 @@ public sealed class YouTubeIntegration(
         string videoId,
         CancellationToken cancellationToken)
     {
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
         //todo avoid checking to save the calls?
         // Check if already present to avoid duplicates
@@ -509,7 +573,7 @@ public sealed class YouTubeIntegration(
         string channelId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
         string? page = null;
         do
@@ -545,7 +609,7 @@ public sealed class YouTubeIntegration(
         string playlistId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
 
         string? page = null;
         do
@@ -577,7 +641,7 @@ public sealed class YouTubeIntegration(
         } while (!string.IsNullOrEmpty(page));
     }
 
-    private async Task<YouTubeService> CreateReadOnlyServiceAsync(CancellationToken cancellationToken)
+    private async Task<string> GetCurrentUsersAccessToken(CancellationToken cancellationToken)
     {
         var accessToken = await currentUserTokenAccessor.GetAccessTokenAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(accessToken))
@@ -585,6 +649,11 @@ public sealed class YouTubeIntegration(
             throw new InvalidOperationException("No access token is available for the current user.");
         }
 
+        return accessToken;
+    }
+
+    private static YouTubeService CreateReadOnlyServiceAsync(string accessToken)
+    {
         var googleCredential = GoogleCredential
             .FromAccessToken(accessToken)
             .CreateScoped(YouTubeService.Scope.YoutubeReadonly);

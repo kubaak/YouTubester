@@ -3,7 +3,6 @@ using YouTubester.Abstractions.Channels;
 using YouTubester.Abstractions.Playlists;
 using YouTubester.Abstractions.Videos;
 using YouTubester.Application.Common;
-using YouTubester.Application.Contracts.Channels;
 using YouTubester.Domain;
 using YouTubester.Integration;
 
@@ -81,7 +80,8 @@ public sealed class ChannelSyncService(
         return existingChannel;
     }
 
-    public async Task<ChannelSyncResult> SyncChannelAsync(string userId, string channelId, CancellationToken cancellationToken)
+    public async Task<ChannelSyncResult> SyncChannelAsync(string userId, string channelId,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
@@ -103,7 +103,7 @@ public sealed class ChannelSyncService(
         return await SyncInternalAsync(userId, channel, currentTime, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<AvailableChannelDto>> GetAvailableYoutubeChannelsForUserAsync(
+    public async Task<IReadOnlyList<ChannelDto>> GetAvailableYoutubeChannelsForUserAsync(
         string userId,
         CancellationToken cancellationToken)
     {
@@ -115,13 +115,13 @@ public sealed class ChannelSyncService(
         var youTubeChannels = await youTubeIntegration.GetUserChannelsAsync(userId, cancellationToken);
         if (youTubeChannels.Count == 0)
         {
-            return Array.Empty<AvailableChannelDto>();
+            return Array.Empty<ChannelDto>();
         }
 
-        var availableChannels = new List<AvailableChannelDto>(youTubeChannels.Count);
+        var availableChannels = new List<ChannelDto>(youTubeChannels.Count);
         foreach (var youTubeChannel in youTubeChannels)
         {
-            availableChannels.Add(new AvailableChannelDto(
+            availableChannels.Add(new ChannelDto(
                 youTubeChannel.Id,
                 youTubeChannel.Name,
                 youTubeChannel.UploadsPlaylistId,

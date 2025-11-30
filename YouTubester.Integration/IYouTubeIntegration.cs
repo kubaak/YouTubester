@@ -1,4 +1,5 @@
-﻿using YouTubester.Integration.Dtos;
+using YouTubester.Abstractions.Channels;
+using YouTubester.Integration.Dtos;
 
 namespace YouTubester.Integration;
 
@@ -7,6 +8,8 @@ public interface IYouTubeIntegration
     Task<ChannelDto?> GetChannelAsync(string userId, string channelId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId, CancellationToken cancellationToken);
+
+    Task<UserChannelDto?> GetCurrentChannelAsync(string accessToken, CancellationToken cancellationToken);
 
     IAsyncEnumerable<VideoDto> GetAllVideosAsync(
         string userId,

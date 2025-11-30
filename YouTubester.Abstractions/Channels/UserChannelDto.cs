@@ -1,4 +1,4 @@
-namespace YouTubester.Application.Contracts.Channels;
+namespace YouTubester.Abstractions.Channels;
 
 public sealed record UserChannelDto(
     string Id,
