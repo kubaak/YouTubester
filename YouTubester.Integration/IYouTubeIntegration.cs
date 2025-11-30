@@ -4,7 +4,7 @@ namespace YouTubester.Integration;
 
 public interface IYouTubeIntegration
 {
-    Task<ChannelDto?> GetChannelAsync(string userId, string channelName, CancellationToken cancellationToken);
+    Task<ChannelDto?> GetChannelAsync(string userId, string channelId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId, CancellationToken cancellationToken);
 

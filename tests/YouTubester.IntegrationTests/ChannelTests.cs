@@ -23,7 +23,6 @@ public sealed class ChannelTests(TestFixture fixture)
         // Arrange
         await fixture.ResetDbAsync();
 
-        const string inputChannelName = "CuteKittens";
         const string channelId = "UC1234567890KITTENS";
         const string uploadsIdV1 = "PL-UPLOADS-V1";
         const string uploadsIdV2 = "PL-UPLOADS-V2";
@@ -34,13 +33,13 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // First call returns initial snapshot, second call returns changed data
         fixture.ApiFactory.MockYouTubeIntegration
-            .SetupSequence(x => x.GetChannelAsync(MockAuthenticationExtensions.TestSub, inputChannelName,
+            .SetupSequence(x => x.GetChannelAsync(MockAuthenticationExtensions.TestSub, channelId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChannelDto(channelId, nameV1, uploadsIdV1, etagV1))
             .ReturnsAsync(new ChannelDto(channelId, nameV2, uploadsIdV2, etagV2));
 
         // --- Act #1: create ---
-        var createResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{inputChannelName}", null);
+        var createResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{channelId}", null);
         Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
 
         // Assert DB after creation
@@ -58,7 +57,7 @@ public sealed class ChannelTests(TestFixture fixture)
         }
 
         // --- Act #2: update (different name, uploads, etag) ---
-        var updateResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{inputChannelName}", null);
+        var updateResp = await fixture.HttpClient.PostAsync($"/api/channels/pull/{channelId}", null);
         Assert.Equal(HttpStatusCode.OK, updateResp.StatusCode);
 
         // Assert DB after update
@@ -73,9 +72,9 @@ public sealed class ChannelTests(TestFixture fixture)
             Assert.Equal(etagV2, ch.ETag);
         }
 
-        // Verify the integration was called twice with the same input name
+        // Verify the integration was called twice with the same input channel id
         fixture.ApiFactory.MockYouTubeIntegration.Verify(
-            m => m.GetChannelAsync(MockAuthenticationExtensions.TestSub, inputChannelName,
+            m => m.GetChannelAsync(MockAuthenticationExtensions.TestSub, channelId,
                 It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
@@ -143,6 +142,67 @@ public sealed class ChannelTests(TestFixture fixture)
     }
 
     [Fact]
+    public async Task GetUserChannels_Returns_Channels_For_Current_User()
+    {
+        // Arrange
+        await fixture.ResetDbAsync();
+
+        using (var scope = fixture.ApiServices.CreateScope())
+        {
+            var databaseContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+
+            var user = User.Create(
+                MockAuthenticationExtensions.TestSub,
+                MockAuthenticationExtensions.TestEmail,
+                MockAuthenticationExtensions.TestName,
+                MockAuthenticationExtensions.TestPicture,
+                TestFixture.TestingDateTimeOffset);
+
+            databaseContext.Users.Add(user);
+
+            var firstChannel = Channel.Create(
+                "UCUserChannel1",
+                MockAuthenticationExtensions.TestSub,
+                "First User Channel",
+                "UploadsPlaylistId1",
+                TestFixture.TestingDateTimeOffset);
+
+            var secondChannel = Channel.Create(
+                "UCUserChannel2",
+                MockAuthenticationExtensions.TestSub,
+                "Second User Channel",
+                "UploadsPlaylistId2",
+                TestFixture.TestingDateTimeOffset);
+
+            databaseContext.Channels.Add(firstChannel);
+            databaseContext.Channels.Add(secondChannel);
+
+            await databaseContext.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await fixture.HttpClient.GetAsync("/api/channels");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var deserialized = JsonSerializer.Deserialize<List<UserChannelDto>>(responseContent, options);
+
+        Assert.NotNull(deserialized);
+        Assert.Equal(2, deserialized!.Count);
+
+        var firstResultChannel = deserialized.Single(channel => channel.Id == "UCUserChannel1");
+        Assert.Equal("First User Channel", firstResultChannel.Title);
+        Assert.Equal(MockAuthenticationExtensions.TestPicture, firstResultChannel.Picture);
+
+        var secondResultChannel = deserialized.Single(channel => channel.Id == "UCUserChannel2");
+        Assert.Equal("Second User Channel", secondResultChannel.Title);
+        Assert.Equal(MockAuthenticationExtensions.TestPicture, secondResultChannel.Picture);
+    }
+
+    [Fact]
     public async Task SyncCurrentUsersChannels_Enqueues_Background_Job_And_Returns_Accepted()
     {
         // Arrange
@@ -170,7 +230,7 @@ public sealed class ChannelTests(TestFixture fixture)
         Assert.Equal(MockAuthenticationExtensions.TestSub, capturedJob.Job.Args[0]);
     }
 
-    [Fact(Skip = "Endpoint removed")]
+    [Fact]
     public async Task Sync_WithDummyChannelAndMockedYouTubeData_UpdatesDatabaseCorrectly()
     {
         // Arrange
@@ -283,7 +343,7 @@ public sealed class ChannelTests(TestFixture fixture)
             .ReturnsAsync(mockVideos.ToList().AsReadOnly());
 
         // Act
-        var response = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
+        var response = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelId}", null);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -359,7 +419,7 @@ public sealed class ChannelTests(TestFixture fixture)
         Assert.Equal(new DateTimeOffset(2024, 1, 2, 12, 0, 0, TimeSpan.Zero), updatedChannel.LastUploadsCutoff);
     }
 
-    [Fact(Skip = "Endpoint removed")]
+    [Fact]
     public async Task Sync_CalledTwice_IsIdempotentAndUpdatesExistingData()
     {
         // Arrange
@@ -467,11 +527,11 @@ public sealed class ChannelTests(TestFixture fixture)
             .ReturnsAsync(mockVideosSecondCall.ToList().AsReadOnly());
 
         // Act - First call
-        var firstResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
+        var firstResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelId}", null);
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
 
         // Act - Second call
-        var secondResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelName}", null);
+        var secondResponse = await fixture.HttpClient.PostAsync($"/api/channels/sync/{testChannelId}", null);
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
 
         var secondResponseContent = await secondResponse.Content.ReadAsStringAsync();

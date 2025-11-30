@@ -20,7 +20,7 @@ public sealed class AuthenticatedTests(TestFixture fixture)
     public async Task Me_WhenAuthenticated_ReturnsMockUserInfo()
     {
         // Act
-        var response = await fixture.HttpClient.GetAsync("/auth/me");
+        var response = await fixture.HttpClient.GetAsync("api/auth/me");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -38,7 +38,7 @@ public sealed class AuthenticatedTests(TestFixture fixture)
     public async Task Logout_WhenAuthenticated_ReturnsOk()
     {
         // Act
-        var response = await fixture.HttpClient.PostAsync("/auth/logout", null);
+        var response = await fixture.HttpClient.PostAsync("api/auth/logout", null);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
