@@ -4,8 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Application.Channels;
-using YouTubester.Application.Contracts.Channels;
 using YouTubester.Domain;
 using YouTubester.Integration.Dtos;
 using YouTubester.IntegrationTests.TestHost;
@@ -127,7 +127,7 @@ public sealed class ChannelTests(TestFixture fixture)
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var deserialized = JsonSerializer.Deserialize<List<AvailableChannelDto>>(responseContent, options);
+        var deserialized = JsonSerializer.Deserialize<List<ChannelDto>>(responseContent, options);
 
         Assert.NotNull(deserialized);
         Assert.Equal(2, deserialized!.Count);
@@ -312,8 +312,7 @@ public sealed class ChannelTests(TestFixture fixture)
 
         var mockPlaylistVideoIds = new Dictionary<string, List<string>>
         {
-            ["playlist123"] = ["video123", "video456"],
-            ["playlist456"] = ["video456"]
+            ["playlist123"] = ["video123", "video456"], ["playlist456"] = ["video456"]
         };
 
         // Setup MockYouTubeIntegration

@@ -1,9 +1,13 @@
 using System.Reflection;
+using System.Security.Claims;
 using Google.Apis.YouTube.v3;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
+using YouTubester.Integration;
 
 namespace YouTubester.Api.Extensions;
 
@@ -79,8 +83,30 @@ public static class ServiceCollectionExtensions
 
                 o.Events = new OAuthEvents
                 {
-                    //todo implement optional token storing here
-                    OnTicketReceived = _ => Task.CompletedTask
+                    OnTicketReceived = async context =>
+                    {
+                        var accessToken = context.Properties?.GetTokenValue("access_token");
+                        if (string.IsNullOrWhiteSpace(accessToken))
+                        {
+                            var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+                            var logger = loggerFactory.CreateLogger("YouTubester.Api.Authentication");
+                            logger.LogWarning("Access token was not available during Google login; skipping channel enrichment.");
+                            return;
+                        }
+
+                        var youTubeIntegration = context.HttpContext.RequestServices.GetRequiredService<IYouTubeIntegration>();
+                        var userChannel = await youTubeIntegration.GetCurrentChannelAsync(accessToken, context.HttpContext.RequestAborted);
+
+                        if (userChannel is null)
+                        {
+                            return;
+                        }
+
+                        var claimsIdentity = (ClaimsIdentity)context.Principal!.Identity!;
+                        claimsIdentity.AddClaim(new Claim("yt_channel_id", userChannel.Id));
+                        claimsIdentity.AddClaim(new Claim("yt_channel_title", userChannel.Title ?? string.Empty));
+                        claimsIdentity.AddClaim(new Claim("yt_channel_picture", userChannel.Picture ?? string.Empty));
+                    }
                 };
             });
 

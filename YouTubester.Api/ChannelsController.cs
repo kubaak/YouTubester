@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using YouTubester.Abstractions.Channels;
 using YouTubester.Application.Channels;
-using YouTubester.Application.Contracts.Channels;
 using YouTubester.Domain;
 
 namespace YouTubester.Api;
@@ -55,9 +54,9 @@ public sealed class ChannelsController(
     /// Returns all YouTube channels available to pull for the current user.
     /// </summary>
     [HttpGet("available")]
-    [ProducesResponseType(typeof(IReadOnlyList<AvailableChannelDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IReadOnlyList<ChannelDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<IReadOnlyList<AvailableChannelDto>>> GetAvailableChannelsAsync(
+    public async Task<ActionResult<IReadOnlyList<ChannelDto>>> GetAvailableChannelsAsync(
         CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

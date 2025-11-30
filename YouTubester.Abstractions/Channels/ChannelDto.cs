@@ -1,4 +1,4 @@
-namespace YouTubester.Integration.Dtos;
+namespace YouTubester.Abstractions.Channels;
 
 public sealed record ChannelDto(
     string Id,

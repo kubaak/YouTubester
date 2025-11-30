@@ -1,4 +1,4 @@
-using YouTubester.Application.Contracts.Channels;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Domain;
 
 namespace YouTubester.Application.Channels;
@@ -15,7 +15,7 @@ public interface IChannelSyncService
     /// <summary>
     /// Returns all YouTube channels available to pull for the specified user.
     /// </summary>
-    Task<IReadOnlyList<AvailableChannelDto>> GetAvailableYoutubeChannelsForUserAsync(
+    Task<IReadOnlyList<ChannelDto>> GetAvailableYoutubeChannelsForUserAsync(
         string userId,
         CancellationToken cancellationToken);
 
