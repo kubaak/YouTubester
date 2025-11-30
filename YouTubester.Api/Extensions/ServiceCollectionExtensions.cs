@@ -1,11 +1,9 @@
 using System.Reflection;
-using System.Security.Claims;
 using Google.Apis.YouTube.v3;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.OpenApi;
-using YouTubester.Abstractions.Auth;
 
 namespace YouTubester.Api.Extensions;
 
@@ -76,49 +74,13 @@ public static class ServiceCollectionExtensions
                 o.Scope.Add("openid");
                 o.Scope.Add("profile");
                 o.Scope.Add("email");
-                o.Scope.Add(YouTubeService.Scope.YoutubeForceSsl);
+                o.Scope.Add(YouTubeService.Scope.YoutubeReadonly);
                 o.ClaimActions.MapJsonKey("picture", "picture");
 
                 o.Events = new OAuthEvents
                 {
-                    OnTicketReceived = async context =>
-                    {
-                        var principal = context.Principal;
-                        if (principal is null)
-                        {
-                            return;
-                        }
-
-                        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-                        if (string.IsNullOrWhiteSpace(userId))
-                        {
-                            return;
-                        }
-
-                        var email = principal.FindFirstValue(ClaimTypes.Email);
-                        var name = principal.Identity?.Name;
-                        var picture = principal.FindFirst("picture")?.Value;
-
-                        var accessToken = context.Properties?.GetTokenValue("access_token");
-                        var refreshToken = context.Properties?.GetTokenValue("refresh_token");
-                        var expiresAtRaw = context.Properties?.GetTokenValue("expires_at");
-                        DateTimeOffset? expiresAt = null;
-                        if (!string.IsNullOrWhiteSpace(expiresAtRaw) &&
-                            DateTimeOffset.TryParse(expiresAtRaw, out var parsedExpiresAt))
-                        {
-                            expiresAt = parsedExpiresAt;
-                        }
-
-                        var requestServices = context.HttpContext.RequestServices;
-                        var userTokenStore = requestServices.GetRequiredService<IUserTokenStore>();
-                        var cancellationToken = context.HttpContext.RequestAborted;
-                        await userTokenStore.UpsertAsync(
-                            userId,
-                            accessToken,
-                            refreshToken,
-                            expiresAt,
-                            cancellationToken);
-                    }
+                    //todo implement optional token storing here
+                    OnTicketReceived = _ => Task.CompletedTask
                 };
             });
 

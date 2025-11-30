@@ -2,15 +2,18 @@
 using System.Runtime.CompilerServices;
 using System.Xml;
 using Google;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
 using Microsoft.Extensions.Logging;
+using YouTubester.Abstractions.Auth;
 using YouTubester.Integration.Dtos;
 
 namespace YouTubester.Integration;
 
 public sealed class YouTubeIntegration(
-    IYouTubeServiceFactory youTubeServiceFactory,
+    ICurrentUserTokenAccessor currentUserTokenAccessor,
     ILogger<YouTubeIntegration> logger) : IYouTubeIntegration
 {
     public async Task<ChannelDto?> GetChannelAsync(string userId, string channelId, CancellationToken cancellationToken)
@@ -22,7 +25,7 @@ public sealed class YouTubeIntegration(
 
         try
         {
-            var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+            var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
             // Fetch channel details by id to get uploads playlist + title + ETag
             var channelRequest = youTubeService.Channels.List("snippet,contentDetails");
@@ -65,11 +68,12 @@ public sealed class YouTubeIntegration(
         }
     }
 
-    public async Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+            var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
             var channels = new List<ChannelDto>();
             string? pageToken = null;
@@ -134,7 +138,7 @@ public sealed class YouTubeIntegration(
         DateTimeOffset? publishedAfter,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
         string? page = null;
 
@@ -248,11 +252,12 @@ public sealed class YouTubeIntegration(
         } while (!string.IsNullOrEmpty(page));
     }
 
-    public async Task<bool?> CheckCommentsAllowedAsync(string userId, string videoId, CancellationToken cancellationToken)
+    public async Task<bool?> CheckCommentsAllowedAsync(string userId, string videoId,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+            var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
             // First check if video is made for kids (short-circuit)
             var videoRequest = youTubeService.Videos.List("status");
@@ -308,7 +313,7 @@ public sealed class YouTubeIntegration(
             return Array.Empty<VideoDto>();
         }
 
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
         var videoRequest = youTubeService.Videos.List("snippet,contentDetails,status,recordingDetails");
         videoRequest.Id = string.Join(",", videoIdsList);
@@ -362,7 +367,7 @@ public sealed class YouTubeIntegration(
         string videoId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
         string? page = null;
         do
@@ -410,18 +415,11 @@ public sealed class YouTubeIntegration(
         } while (page != null);
     }
 
-    public async Task ReplyAsync(string userId, string parentCommentId, string text, CancellationToken cancellationToken)
+    public async Task ReplyAsync(string userId, string parentCommentId, string text,
+        CancellationToken cancellationToken)
     {
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
-
-        var comment = new Comment
-        {
-            Snippet = new CommentSnippet
-            {
-                ParentId = parentCommentId,
-                TextOriginal = text
-            }
-        };
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
+        var comment = new Comment { Snippet = new CommentSnippet { ParentId = parentCommentId, TextOriginal = text } };
 
         await youTubeService.Comments.Insert(comment, "snippet").ExecuteAsync(cancellationToken);
     }
@@ -439,7 +437,7 @@ public sealed class YouTubeIntegration(
         string? locationDescription,
         CancellationToken cancellationToken)
     {
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
         var snippet = new VideoSnippet
         {
@@ -457,8 +455,7 @@ public sealed class YouTubeIntegration(
         {
             video.RecordingDetails.Location = new GeoPoint
             {
-                Latitude = location.Value.lat,
-                Longitude = location.Value.lng
+                Latitude = location.Value.lat, Longitude = location.Value.lng
             };
             video.RecordingDetails.LocationDescription = locationDescription;
         }
@@ -473,7 +470,7 @@ public sealed class YouTubeIntegration(
         string videoId,
         CancellationToken cancellationToken)
     {
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
         //todo avoid checking to save the calls?
         // Check if already present to avoid duplicates
@@ -512,7 +509,7 @@ public sealed class YouTubeIntegration(
         string channelId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
         string? page = null;
         do
@@ -548,7 +545,7 @@ public sealed class YouTubeIntegration(
         string playlistId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var youTubeService = await youTubeServiceFactory.CreateAsync(userId, cancellationToken);
+        var youTubeService = await CreateReadOnlyServiceAsync(cancellationToken);
 
         string? page = null;
         do
@@ -578,5 +575,25 @@ public sealed class YouTubeIntegration(
 
             page = itemsResponse.NextPageToken;
         } while (!string.IsNullOrEmpty(page));
+    }
+
+    private async Task<YouTubeService> CreateReadOnlyServiceAsync(CancellationToken cancellationToken)
+    {
+        var accessToken = await currentUserTokenAccessor.GetAccessTokenAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            throw new InvalidOperationException("No access token is available for the current user.");
+        }
+
+        var googleCredential = GoogleCredential
+            .FromAccessToken(accessToken)
+            .CreateScoped(YouTubeService.Scope.YoutubeReadonly);
+
+        var initializer = new BaseClientService.Initializer
+        {
+            HttpClientInitializer = googleCredential, ApplicationName = "YouTubester"
+        };
+
+        return new YouTubeService(initializer);
     }
 }
