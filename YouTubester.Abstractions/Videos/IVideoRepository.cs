@@ -19,8 +19,9 @@ public interface IVideoRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets a page of videos with optional title filtering and cursor-based pagination.
+    /// Gets a page of videos with optional title filtering and cursor-based pagination for a specific channel.
     /// </summary>
+    /// <param name="channelId">Channel id to filter videos by.</param>
     /// <param name="title">Optional title filter (case-insensitive substring match).</param>
     /// <param name="visibilities">Optional set of visibilities to include.</param>
     /// <param name="afterPublishedAtUtc">Cursor: published date to search after (exclusive).</param>
@@ -29,6 +30,7 @@ public interface IVideoRepository
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>List of videos ordered by PublishedAt DESC, VideoId DESC.</returns>
     Task<List<Video>> GetVideosPageAsync(
+        string channelId,
         string? title,
         IReadOnlyCollection<VideoVisibility>? visibilities,
         DateTimeOffset? afterPublishedAtUtc,
