@@ -205,6 +205,13 @@ public class VideosTests(TestFixture fixture)
 
         var testUploadsPlaylistId = "PLTestUploads123";
 
+        var testChannelID = "testChannelID123";
+        var channel = Channel.Create(testChannelID, "testUserId123", "testChannelName123",
+            testUploadsPlaylistId, DateTimeOffset.Now);
+
+        fixture.ApiFactory.MockCurrentChannelContext.Setup(x => x.GetRequiredChannelId())
+            .Returns(testChannelID);
+
         var video1 = Video.Create(
             testUploadsPlaylistId,
             "video1",
@@ -262,6 +269,7 @@ public class VideosTests(TestFixture fixture)
         using (var scope = fixture.ApiServices.CreateScope())
         {
             var databaseContext = scope.ServiceProvider.GetRequiredService<YouTubesterDb>();
+            databaseContext.Channels.Add(channel);
             databaseContext.Videos.AddRange(video1, video2, video3);
             await databaseContext.SaveChangesAsync();
         }

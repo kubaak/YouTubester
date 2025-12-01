@@ -70,6 +70,7 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
     }
 
     public async Task<List<Video>> GetVideosPageAsync(
+        string channelId,
         string? title,
         IReadOnlyCollection<VideoVisibility>? visibilities,
         DateTimeOffset? afterPublishedAtUtc,
@@ -80,9 +81,11 @@ public sealed class VideoRepository(YouTubesterDb db) : IVideoRepository
         var sb = new StringBuilder();
         sb.AppendLine("SELECT *");
         sb.AppendLine("FROM Videos v");
+        sb.AppendLine("INNER JOIN Channels c ON c.UploadsPlaylistId = v.UploadsPlaylistId");
         sb.AppendLine("WHERE 1=1");
+        sb.AppendLine("  AND c.ChannelId = @channelId");
 
-        var parameters = new List<object>();
+        var parameters = new List<object> { new SqliteParameter("@channelId", channelId) };
 
         if (!string.IsNullOrWhiteSpace(title))
         {

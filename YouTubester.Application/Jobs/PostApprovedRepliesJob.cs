@@ -22,7 +22,7 @@ public sealed class PostApprovedRepliesJob(
                     throw new ArgumentException($"The draft {commentId} could not be found.");
 
         //todo transaction
-        await youTubeIntegration.ReplyAsync(userId, commentId, draft.FinalText!, jobCancellationToken.ShutdownToken);
+        await youTubeIntegration.ReplyAsync(commentId, draft.FinalText!, jobCancellationToken.ShutdownToken);
         draft.Post(DateTimeOffset.Now); //todo provider
         await repository.AddOrUpdateReplyAsync(draft, jobCancellationToken.ShutdownToken);
     }

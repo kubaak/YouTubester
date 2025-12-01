@@ -33,7 +33,7 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // First call returns initial snapshot, second call returns changed data
         fixture.ApiFactory.MockYouTubeIntegration
-            .SetupSequence(x => x.GetChannelAsync(MockAuthenticationExtensions.TestSub, channelId,
+            .SetupSequence(x => x.GetChannelAsync(channelId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChannelDto(channelId, nameV1, uploadsIdV1, etagV1))
             .ReturnsAsync(new ChannelDto(channelId, nameV2, uploadsIdV2, etagV2));
@@ -74,7 +74,7 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // Verify the integration was called twice with the same input channel id
         fixture.ApiFactory.MockYouTubeIntegration.Verify(
-            m => m.GetChannelAsync(MockAuthenticationExtensions.TestSub, channelId,
+            m => m.GetChannelAsync(channelId,
                 It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
@@ -116,7 +116,7 @@ public sealed class ChannelTests(TestFixture fixture)
         };
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetUserChannelsAsync(MockAuthenticationExtensions.TestSub, It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetUserChannelsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(remoteChannels);
 
         // Act
@@ -137,7 +137,7 @@ public sealed class ChannelTests(TestFixture fixture)
         Assert.Equal("UploadsPlaylistId2", deserialized[1].UploadsPlaylistId);
 
         fixture.ApiFactory.MockYouTubeIntegration.Verify(
-            x => x.GetUserChannelsAsync(MockAuthenticationExtensions.TestSub, It.IsAny<CancellationToken>()),
+            x => x.GetUserChannelsAsync(It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -225,7 +225,7 @@ public sealed class ChannelTests(TestFixture fixture)
         Assert.Single(capturedJobs);
 
         var capturedJob = capturedJobs.Single();
-        Assert.Equal(nameof(IChannelSyncService.SyncChannelsForUserAsync), capturedJob.Job.Method.Name);
+        Assert.Equal(nameof(IChannelSyncService.SyncChannelAsync), capturedJob.Job.Method.Name);
         Assert.Equal(2, capturedJob.Job.Args.Count);
         Assert.Equal(MockAuthenticationExtensions.TestSub, capturedJob.Job.Args[0]);
     }
@@ -317,27 +317,27 @@ public sealed class ChannelTests(TestFixture fixture)
 
         // Setup MockYouTubeIntegration
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetAllVideosAsync(MockAuthenticationExtensions.TestSub, testUploadsPlaylistId,
+            .Setup(x => x.GetAllVideosAsync(testUploadsPlaylistId,
                 It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockVideos));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistsAsync(MockAuthenticationExtensions.TestSub, testChannelId,
+            .Setup(x => x.GetPlaylistsAsync(testChannelId,
                 It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistData));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistVideoIdsAsync(MockAuthenticationExtensions.TestSub, "playlist123",
+            .Setup(x => x.GetPlaylistVideoIdsAsync("playlist123",
                 It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist123"]));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistVideoIdsAsync(MockAuthenticationExtensions.TestSub, "playlist456",
+            .Setup(x => x.GetPlaylistVideoIdsAsync("playlist456",
                 It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist456"]));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetVideosAsync(MockAuthenticationExtensions.TestSub, It.IsAny<IEnumerable<string>>(),
+            .Setup(x => x.GetVideosAsync(It.IsAny<IEnumerable<string>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockVideos.ToList().AsReadOnly());
 
@@ -503,24 +503,24 @@ public sealed class ChannelTests(TestFixture fixture)
         // Setup MockYouTubeIntegration for first call
         fixture.ApiFactory.MockYouTubeIntegration
             .SetupSequence(x =>
-                x.GetAllVideosAsync(MockAuthenticationExtensions.TestSub, testUploadsPlaylistId,
+                x.GetAllVideosAsync(testUploadsPlaylistId,
                     It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockVideosFirstCall))
             .Returns(CreateAsyncEnumerable(mockVideosSecondCall));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistsAsync(MockAuthenticationExtensions.TestSub, testChannelId,
+            .Setup(x => x.GetPlaylistsAsync(testChannelId,
                 It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistData));
 
         fixture.ApiFactory.MockYouTubeIntegration
-            .Setup(x => x.GetPlaylistVideoIdsAsync(MockAuthenticationExtensions.TestSub, "playlist789",
+            .Setup(x => x.GetPlaylistVideoIdsAsync("playlist789",
                 It.IsAny<CancellationToken>()))
             .Returns(CreateAsyncEnumerable(mockPlaylistVideoIds["playlist789"]));
 
         fixture.ApiFactory.MockYouTubeIntegration
             .SetupSequence(x =>
-                x.GetVideosAsync(MockAuthenticationExtensions.TestSub, It.IsAny<IEnumerable<string>>(),
+                x.GetVideosAsync(It.IsAny<IEnumerable<string>>(),
                     It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockVideosFirstCall.ToList().AsReadOnly())
             .ReturnsAsync(mockVideosSecondCall.ToList().AsReadOnly());

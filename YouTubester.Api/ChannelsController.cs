@@ -65,7 +65,7 @@ public sealed class ChannelsController(
             return Unauthorized();
         }
 
-        var channels = await channelSyncService.GetAvailableYoutubeChannelsForUserAsync(userId, cancellationToken);
+        var channels = await channelSyncService.GetAvailableYoutubeChannelsForUserAsync(cancellationToken);
         return Ok(channels);
     }
 
@@ -97,50 +97,24 @@ public sealed class ChannelsController(
     }
 
     /// <summary>
-    /// Schedules a background sync of all channels owned by the currently signed-in user.
+    /// Immediately synchronizes the current channel for the currently signed-in user.
+    /// The current channel is resolved from the channel context (yt_channel_id claim).
     /// </summary>
-    [HttpPost("sync")]
-    [ProducesResponseType(StatusCodes.Status202Accepted)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public IActionResult SyncCurrentUsersChannels()
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return Unauthorized();
-        }
-
-        backgroundJobClient.Enqueue<IChannelSyncService>(
-            service => service.SyncChannelsForUserAsync(userId, CancellationToken.None));
-
-        return Accepted(new { status = "scheduled" });
-    }
-
-    /// <summary>
-    /// Immediately synchronizes a single channel for the currently signed-in user.
-    /// </summary>
-    /// <param name="channelId">The YouTube channel identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    [HttpPost("sync/{channelId}")]
+    [HttpPost("sync/current")]
     [ProducesResponseType(typeof(ChannelSyncResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ChannelSyncResult>> SyncChannelAsync(
-        [FromRoute] string channelId,
+    public async Task<ActionResult<ChannelSyncResult>> SyncCurrentChannelAsync(
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(channelId))
-        {
-            return ValidationProblem("'channelId' is required.");
-        }
-
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId))
         {
             return Unauthorized();
         }
 
-        var result = await channelSyncService.SyncChannelAsync(userId, channelId, cancellationToken);
+        var result = await channelSyncService.SyncChannelAsync(userId, cancellationToken);
         return Ok(result);
     }
 }

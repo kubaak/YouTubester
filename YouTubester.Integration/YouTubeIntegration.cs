@@ -17,7 +17,7 @@ public sealed class YouTubeIntegration(
     ICurrentUserTokenAccessor currentUserTokenAccessor,
     ILogger<YouTubeIntegration> logger) : IYouTubeIntegration
 {
-    public async Task<ChannelDto?> GetChannelAsync(string userId, string channelId, CancellationToken cancellationToken)
+    public async Task<ChannelDto?> GetChannelAsync(string channelId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(channelId))
         {
@@ -132,7 +132,7 @@ public sealed class YouTubeIntegration(
         }
     }
 
-    public async Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(string userId,
+    public async Task<IReadOnlyList<ChannelDto>> GetUserChannelsAsync(
         CancellationToken cancellationToken)
     {
         try
@@ -197,7 +197,6 @@ public sealed class YouTubeIntegration(
     }
 
     public async IAsyncEnumerable<VideoDto> GetAllVideosAsync(
-        string userId,
         string uploadsPlaylistId,
         DateTimeOffset? publishedAfter,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -316,7 +315,7 @@ public sealed class YouTubeIntegration(
         } while (!string.IsNullOrEmpty(page));
     }
 
-    public async Task<bool?> CheckCommentsAllowedAsync(string userId, string videoId,
+    public async Task<bool?> CheckCommentsAllowedAsync(string videoId,
         CancellationToken cancellationToken)
     {
         try
@@ -367,7 +366,6 @@ public sealed class YouTubeIntegration(
     }
 
     public async Task<IReadOnlyList<VideoDto>> GetVideosAsync(
-        string userId,
         IEnumerable<string> videoIds,
         CancellationToken cancellationToken)
     {
@@ -426,7 +424,6 @@ public sealed class YouTubeIntegration(
     }
 
     public async IAsyncEnumerable<CommentThreadDto> GetUnansweredTopLevelCommentsAsync(
-        string userId,
         string channelId,
         string videoId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -479,7 +476,7 @@ public sealed class YouTubeIntegration(
         } while (page != null);
     }
 
-    public async Task ReplyAsync(string userId, string parentCommentId, string text,
+    public async Task ReplyAsync(string parentCommentId, string text,
         CancellationToken cancellationToken)
     {
         var youTubeService = CreateReadOnlyServiceAsync(await GetCurrentUsersAccessToken(cancellationToken));
@@ -489,7 +486,6 @@ public sealed class YouTubeIntegration(
     }
 
     public async Task UpdateVideoAsync(
-        string userId,
         string videoId,
         string title,
         string description,
@@ -529,7 +525,6 @@ public sealed class YouTubeIntegration(
     }
 
     public async Task AddVideoToPlaylistAsync(
-        string userId,
         string playlistId,
         string videoId,
         CancellationToken cancellationToken)
@@ -569,7 +564,6 @@ public sealed class YouTubeIntegration(
     }
 
     public async IAsyncEnumerable<PlaylistDto> GetPlaylistsAsync(
-        string userId,
         string channelId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -605,7 +599,6 @@ public sealed class YouTubeIntegration(
     }
 
     public async IAsyncEnumerable<string> GetPlaylistVideoIdsAsync(
-        string userId,
         string playlistId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {

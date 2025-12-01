@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Abstractions.Videos;
 using YouTubester.Application.Common;
 using YouTubester.Application.Contracts;
@@ -14,6 +15,7 @@ namespace YouTubester.Application;
 public class VideoService(
     IVideoRepository repo,
     IYouTubeIntegration yt,
+    ICurrentChannelContext channelContext,
     IOptions<VideoListingOptions> options,
     ILogger<VideoService> logger) : IVideoService
 {
@@ -56,10 +58,13 @@ public class VideoService(
             afterVideoId = videoId;
         }
 
+        var channelId = channelContext.GetRequiredChannelId();
+
         // Fetch one extra item to determine if there's a next page
         var take = effectivePageSize + 1;
         var videos =
-            await repo.GetVideosPageAsync(normalizedTitle, visibility, afterPublishedAtUtc, afterVideoId, take, ct);
+            await repo.GetVideosPageAsync(channelId, normalizedTitle, visibility, afterPublishedAtUtc, afterVideoId,
+                take, ct);
 
         // Determine if there are more items
         var hasMore = videos.Count > effectivePageSize;
@@ -74,10 +79,7 @@ public class VideoService(
 
         var items = itemsToReturn.Select(v => new VideoListItemDto
         {
-            VideoId = v.VideoId,
-            Title = v.Title,
-            PublishedAt = v.PublishedAt,
-            ThumbnailUrl = v.ThumbnailUrl
+            VideoId = v.VideoId, Title = v.Title, PublishedAt = v.PublishedAt, ThumbnailUrl = v.ThumbnailUrl
         }).ToList();
 
         return new PagedResult<VideoListItemDto> { Items = items, NextPageToken = nextPageToken };

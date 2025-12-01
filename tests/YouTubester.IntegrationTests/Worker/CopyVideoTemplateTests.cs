@@ -75,7 +75,6 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         await capturingClient.RunAllAsync<CopyVideoTemplateJob>(fixture.WorkerServices);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.UpdateVideoAsync(
-                It.IsAny<string>(),
                 targetVideo.VideoId,
                 sourceVideo.Title!,
                 sourceVideo.Description!,
@@ -90,7 +89,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
             Times.Once);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.AddVideoToPlaylistAsync(
-            It.IsAny<string>(), playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()),
+            playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()),
             Times.Once);
 
         using (var scope = fixture.WorkerServices.CreateScope())
@@ -192,7 +191,6 @@ public class CopyVideoTemplateTests(TestFixture fixture)
         await capturingClient.RunAllAsync<CopyVideoTemplateJob>(fixture.WorkerServices);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.UpdateVideoAsync(
-                It.IsAny<string>(),
                 targetVideo.VideoId,
                 suggestedMetadata.Title,
                 suggestedMetadata.Description,
@@ -207,7 +205,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
             Times.Once);
 
         fixture.WorkerFactory.MockYouTubeIntegration.Verify(m => m.AddVideoToPlaylistAsync(
-            It.IsAny<string>(), playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()),
+            playlistA.PlaylistId, targetVideo.VideoId, It.IsAny<CancellationToken>()),
             Times.Once);
 
         using (var scope = fixture.WorkerServices.CreateScope())
@@ -248,7 +246,7 @@ public class CopyVideoTemplateTests(TestFixture fixture)
     {
         fixture.WorkerFactory.MockYouTubeIntegration
             .Setup(m => m.AddVideoToPlaylistAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
@@ -257,7 +255,6 @@ public class CopyVideoTemplateTests(TestFixture fixture)
     {
         fixture.WorkerFactory.MockYouTubeIntegration
             .Setup(m => m.UpdateVideoAsync(
-                It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),

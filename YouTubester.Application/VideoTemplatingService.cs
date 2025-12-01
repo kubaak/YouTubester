@@ -68,7 +68,6 @@ public sealed class VideoTemplatingService(
 
         // Update target video on YouTube
         await youTubeIntegration.UpdateVideoAsync(
-            userId,
             request.TargetVideoId,
             newTitle,
             newDescription,
@@ -122,7 +121,7 @@ public sealed class VideoTemplatingService(
             .ToHashSet();
         foreach (var playlistId in playlistIds)
         {
-            await youTubeIntegration.AddVideoToPlaylistAsync(userId, playlistId, targetVideo.VideoId,
+            await youTubeIntegration.AddVideoToPlaylistAsync(playlistId, targetVideo.VideoId,
                 cancellationToken);
         }
 

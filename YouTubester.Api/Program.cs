@@ -25,6 +25,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwagger();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentChannelContext, CurrentChannelContext>();
 builder.Services.AddAiClient(builder.Configuration);
 builder.Services.AddYoutubeServices(builder.Configuration);
 builder.Services.AddScoped<ICurrentUserTokenAccessor, CurrentUserTokenAccessor>();

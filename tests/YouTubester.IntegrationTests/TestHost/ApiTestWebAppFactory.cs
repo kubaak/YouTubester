@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using YouTubester.Abstractions.Channels;
 using YouTubester.Api;
 using YouTubester.Integration;
 using YouTubester.Persistence;
@@ -22,6 +23,7 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
     private CapturingBackgroundJobClient CapturingJobClient { get; }
     public Mock<IAiClient> MockAiClient { get; }
     public Mock<IYouTubeIntegration> MockYouTubeIntegration { get; }
+    public Mock<ICurrentChannelContext> MockCurrentChannelContext { get; }
 
     public ApiTestWebAppFactory(CapturingBackgroundJobClient capturingJobClient)
     {
@@ -36,6 +38,8 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
         CapturingJobClient = capturingJobClient;
         MockAiClient = new Mock<IAiClient>(MockBehavior.Strict);
         MockYouTubeIntegration = new Mock<IYouTubeIntegration>(MockBehavior.Strict);
+        MockCurrentChannelContext = new Mock<ICurrentChannelContext>(MockBehavior.Strict);
+        MockCurrentChannelContext.Setup(x => x.GetRequiredChannelId()).Returns("testChannelId");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -57,6 +61,7 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
             services.RemoveAll<IAuthorizationService>();
             services.RemoveAll<IAuthorizationPolicyProvider>();
             services.RemoveAll<IAuthorizationHandlerProvider>();
+            services.RemoveAll<ICurrentChannelContext>();
 
             // Nuke ALL hosted services (covers Hangfire server and any BackgroundService)
             services.RemoveAll<IHostedService>();
@@ -75,6 +80,7 @@ public class ApiTestWebAppFactory : WebApplicationFactory<Program>
 
             // Add mock authentication
             services.AddMockAuthentication();
+            services.AddSingleton(MockCurrentChannelContext.Object);
         });
 
         // Reduce logging noise in tests
